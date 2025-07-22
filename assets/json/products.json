@@ -1,0 +1,56 @@
+[
+  {
+    "id": "P0006",
+    "name": "Cold Cereals",
+    "imageUrl": "assets/product1.png",
+    "category": "Dry Food",
+    "price": 350.00,
+    "unit": "Pack",
+    "quantityInStock": 120
+  },
+  {
+    "id": "P0005",
+    "name": "Chocolate Bar",
+    "imageUrl": "assets/product2.png",
+    "category": "Snacks",
+    "price": 50.00,
+    "unit": "Piece",
+    "quantityInStock": 300
+  },
+  {
+    "id": "P0004",
+    "name": "Omar Vegetable Oil",
+    "imageUrl": "assets/product3.png",
+    "category": "Cooking",
+    "price": 850.00,
+    "unit": "Liter",
+    "quantityInStock": 80
+  },
+  {
+    "id": "P0003",
+    "name": "Eggs",
+    "imageUrl": "assets/product4.png",
+    "category": "Dairy",
+    "price": 20.00,
+    "unit": "Piece",
+    "quantityInStock": 500
+  },
+  {
+    "id": "P0002",
+    "name": "Penne",
+    "imageUrl": "assets/product_placeholder.png",
+    "category": "Pasta",
+    "price": 250.00,
+    "unit": "Pack",
+    "quantityInStock": 150
+  },
+  {
+    "id": "P0001",
+    "name": "Mayonnaise",
+    "imageUrl": "assets/product_placeholder.png",
+    "category": "Condiment",
+    "price": 400.00,
+    "unit": "Jar",
+    "quantityInStock": 90
+  }
+]

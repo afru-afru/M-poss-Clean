@@ -1,0 +1,20 @@
+[
+  {
+    "id": "user123",
+    "username": "admin",
+    "password": "password123",
+    "name": "Admin User",
+    "email": "admin@mrp.com",
+    "position": "System Administrator",
+    "phoneNumber": "+251911000001"
+  },
+  {
+    "id": "user456",
+    "username": "hiwot",
+    "password": "password789",
+    "name": "Hiwot M.",
+    "email": "hiwotm@matrix.com",
+    "position": "Sales Manager",
+    "phoneNumber": "+251932265044"
+  }
+]

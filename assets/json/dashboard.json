@@ -1,0 +1,34 @@
+{
+  "annualReport": [
+    { "month": "Jan", "sales": 20000 },
+    { "month": "Feb", "sales": 45000 },
+    { "month": "Mar", "sales": 78000 },
+    { "month": "Apr", "sales": 74000 },
+    { "month": "May", "sales": 52000 },
+    { "month": "Jun", "sales": 31000 },
+    { "month": "Jul", "sales": 34000 },
+    { "month": "Aug", "sales": 48000 }
+  ],
+  "monthlyReportSummary": {
+    "sales": {
+      "title": "Sales Report",
+      "percentageChange": 29
+    },
+    "expense": {
+      "title": "Expense Report",
+      "percentageChange": 12
+    },
+    "product": {
+      "title": "Product Report",
+      "percentageChange": 47
+    },
+    "purchase": {
+      "title": "Purchase Report",
+      "percentageChange": 24
+    }
+  },
+  "salesGauge": {
+    "title": "Sales Report",
+    "percentage": 70
+  }
+}
