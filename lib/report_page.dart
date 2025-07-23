@@ -1,39 +1,80 @@
-// lib/report_page.dart
-
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'bloc/report_bloc.dart';
+import 'invoice_detail_page.dart';
 
-class ReportPage extends StatelessWidget {
+// 1. Convert to StatefulWidget
+class ReportPage extends StatefulWidget {
   const ReportPage({super.key});
 
-  // Dummy data for the report list
-  final List<Map<String, String>> _invoiceData = const [
-    {'order_number': '00032', 'type': 'POS Order', 'date': '12/10/2024', 'status': 'Completed'},
-    {'order_number': '00031', 'type': 'Online Order', 'date': '11/10/2024', 'status': 'Pending'},
-    {'order_number': '00030', 'type': 'POS Order', 'date': '11/10/2024', 'status': 'Completed'},
-    {'order_number': '00029', 'type': 'POS Order', 'date': '10/10/2024', 'status': 'Cancelled'},
-    {'order_number': '00028', 'type': 'Online Order', 'date': '09/10/2024', 'status': 'Completed'},
-  ];
+  @override
+  State<ReportPage> createState() => _ReportPageState();
+}
+
+class _ReportPageState extends State<ReportPage> {
+  // 2. Create a TextEditingController
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFFF4F6F8),
-      child: ListView(
-        children: [
-          _buildSearchBar(),
-          _buildHeader(),
-          // Generate the list of invoice cards from the dummy data
-          ..._invoiceData.map((invoice) => _buildInvoiceCard(invoice)).toList(),
-        ],
+    return BlocProvider(
+      create: (context) => ReportBloc()..add(LoadReports()),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF4F6F8),
+        body: BlocBuilder<ReportBloc, ReportState>(
+          builder: (context, state) {
+            if (state is ReportLoading || state is ReportInitial) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (state is ReportLoaded) {
+              return _buildReportView(context, state.filteredInvoices);
+            }
+            if (state is ReportError) {
+              return Center(child: Text(state.message));
+            }
+            return const Center(child: Text('Something went wrong.'));
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildReportView(BuildContext context, List<dynamic> invoices) {
+    return Column(
+      children: [
+        _buildSearchBar(context),
+        _buildHeader(),
+        Expanded(
+          child: invoices.isEmpty
+              ? const Center(
+                  child: Text('No matching invoices found.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                )
+              : ListView(
+                  children: invoices.map((invoice) => _buildInvoiceCard(invoice)).toList(),
+                ),
+        ),
+      ],
+    );
+  }
+
+  // --- All your styled helper methods are below, with only the search bar modified ---
+
+  Widget _buildSearchBar(BuildContext context) {
     return Container(
-      color: Color(0xFFEFF4FF),
+      color: const Color(0xFFEFF4FF),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       child: TextField(
+        controller: _searchController,
+        onChanged: (query) {
+          // This makes the search bar functional
+          context.read<ReportBloc>().add(SearchReports(query: query));
+        },
         decoration: InputDecoration(
           hintText: 'Search',
           prefixIcon: const Icon(Icons.search, color: Colors.grey),
@@ -49,12 +90,12 @@ class ReportPage extends StatelessWidget {
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      color: Colors.white,
+      color: const Color(0xFFF4F6F8),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('All Sales Report', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold,color: Color(0xFF1E3A8A))),
+          Text('All Sales Report', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
           SizedBox(height: 4),
           Text('Lorem ipsum dolor sit amet, consectetur adipiscing', style: TextStyle(color: Colors.black)),
         ],
@@ -62,14 +103,13 @@ class ReportPage extends StatelessWidget {
     );
   }
 
-  Widget _buildInvoiceCard(Map<String, String> data) {
+  Widget _buildInvoiceCard(Map<String, dynamic> data) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
-    
       child: Card(
-          color:Colors.white,
+        color: Colors.white,
         elevation: 1.5,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16),side: BorderSide(color: Colors.grey.shade300)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade300)),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Row(
@@ -79,11 +119,11 @@ class ReportPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Invoice Order ${data['order_number']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+                    Text('Invoice Order ${data['orderNumber']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
                     const SizedBox(height: 4),
-                    Text(data['type']!, style: const TextStyle(color: Colors.black, fontSize: 12)),
+                    Text(data['orderType']!, style: const TextStyle(color: Colors.black, fontSize: 12)),
                     const SizedBox(height: 4),
-                    Text('Ordered at: ${data['date']}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                    Text('Ordered at: ${data['orderDate']}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
                   ],
                 ),
               ),
@@ -93,7 +133,14 @@ class ReportPage extends StatelessWidget {
                   _buildStatusChip(data['status']!),
                   const SizedBox(height: 8),
                   ElevatedButton(
-                    onPressed: () {},
+                      onPressed: () {
+    // Navigate to the detail page, passing the invoice ID
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => InvoiceDetailPage(invoiceId: data['orderNumber']!),
+      ),
+    );
+  },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,

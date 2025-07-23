@@ -1,7 +1,11 @@
 // lib/add_product_page.dart
 
+import 'dart:io';
 import 'package:dotted_border/dotted_border.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
+import 'bloc/add_product_bloc.dart';
 
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
@@ -11,50 +15,89 @@ class AddProductPage extends StatefulWidget {
 }
 
 class _AddProductPageState extends State<AddProductPage> {
-  // State variables for dropdowns
+  final _productNameController = TextEditingController(text: 'Cold Cereals');
+  final _itemController = TextEditingController(text: 'Cold cereals');
+  final _quantityController = TextEditingController(text: '300');
+  final _unitController = TextEditingController(text: 'Pack');
+
   String? _selectedCategory = 'Dry Food Items';
   String? _selectedSubCategory = 'Bread Aisle';
   String? _selectedType = '-';
   String? _selectedStatus = 'Pending';
+  
+  XFile? _selectedImage;
 
-  // Options for the dropdowns
   final List<String> _categoryOptions = ['Dry Food Items', 'Cold Items', 'Fresh Produce'];
   final List<String> _subCategoryOptions = ['Bread Aisle', 'Snack Aisle', 'Cereal Aisle'];
   final List<String> _typeOptions = ['-', 'Type A', 'Type B'];
   final List<String> _statusOptions = ['Pending', 'Active', 'Discontinued'];
 
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      setState(() {
+        _selectedImage = image;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _productNameController.dispose();
+    _itemController.dispose();
+    _quantityController.dispose();
+    _unitController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     const Color primaryBlue = Color(0xFF3B82F6);
 
-    return Scaffold(
-      backgroundColor:Color(0xFFF4F6F8),
-      appBar: _buildAppBar(context),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildSearchBar(),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  _buildTextField(label: 'Product Name', initialValue: 'Cold Cereals'),
-                  _buildImageUploader(),
-                  _buildDropdownField(label: 'Category', value: _selectedCategory, items: _categoryOptions, onChanged: (val) => setState(() => _selectedCategory = val)),
-                  _buildDropdownField(label: 'Sub Category', value: _selectedSubCategory, items: _subCategoryOptions, onChanged: (val) => setState(() => _selectedSubCategory = val)),
-                  _buildTextField(label: 'Item', initialValue: 'Cold cereals'),
-                  _buildDropdownField(label: 'Type', value: _selectedType, items: _typeOptions, onChanged: (val) => setState(() => _selectedType = val)),
-                  _buildTextField(label: 'Quantity', initialValue: '300', keyboardType: TextInputType.number),
-                  _buildTextField(label: 'Unit', initialValue: 'Pack'),
-                  _buildDropdownField(label: 'Status', value: _selectedStatus, items: _statusOptions, onChanged: (val) => setState(() => _selectedStatus = val)),
-                ],
-              ),
+    return BlocProvider(
+      create: (context) => AddProductBloc(),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF4F6F8),
+        appBar: _buildAppBar(context),
+        body: BlocListener<AddProductBloc, AddProductState>(
+          listener: (context, state) {
+            if (state is AddProductSuccess) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Product Added Successfully!'), backgroundColor: Colors.green),
+              );
+            } else if (state is AddProductFailure) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(state.error.replaceAll('Exception: ', '')), backgroundColor: Colors.red),
+              );
+            }
+          },
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildSearchBar(),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      _buildTextField(label: 'Product Name', controller: _productNameController),
+                      _buildImageUploader(),
+                      _buildDropdownField(label: 'Category', value: _selectedCategory, items: _categoryOptions, onChanged: (val) => setState(() => _selectedCategory = val)),
+                      _buildDropdownField(label: 'Sub Category', value: _selectedSubCategory, items: _subCategoryOptions, onChanged: (val) => setState(() => _selectedSubCategory = val)),
+                      _buildTextField(label: 'Item', controller: _itemController),
+                      _buildDropdownField(label: 'Type', value: _selectedType, items: _typeOptions, onChanged: (val) => setState(() => _selectedType = val)),
+                      _buildTextField(label: 'Quantity', controller: _quantityController, keyboardType: TextInputType.number),
+                      _buildTextField(label: 'Unit', controller: _unitController),
+                      _buildDropdownField(label: 'Status', value: _selectedStatus, items: _statusOptions, onChanged: (val) => setState(() => _selectedStatus = val)),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
+        bottomNavigationBar: _buildBottomButton(primaryBlue),
       ),
-      bottomNavigationBar: _buildBottomButton(primaryBlue),
     );
   }
 
@@ -67,7 +110,7 @@ class _AddProductPageState extends State<AddProductPage> {
         icon: const Icon(Icons.arrow_back, color: primaryBlue),
         onPressed: () => Navigator.of(context).pop(),
       ),
-      title: const Text('Add Product', style: TextStyle(color: primaryBlue, fontWeight: FontWeight.bold,fontSize: 20)),
+      title: const Text('Add Product', style: TextStyle(color: primaryBlue, fontWeight: FontWeight.bold, fontSize: 20)),
       centerTitle: false,
       actions: [
         TextButton(
@@ -86,7 +129,7 @@ class _AddProductPageState extends State<AddProductPage> {
 
   Widget _buildSearchBar() {
     return Container(
-       color: Color(0xFFEFF4FF),
+      color: const Color(0xFFEFF4FF),
       padding: const EdgeInsets.all(16.0),
       child: TextField(
         decoration: InputDecoration(
@@ -101,7 +144,7 @@ class _AddProductPageState extends State<AddProductPage> {
     );
   }
 
-  Widget _buildTextField({required String label, required String initialValue, TextInputType keyboardType = TextInputType.text}) {
+  Widget _buildTextField({required String label, required TextEditingController controller, TextInputType keyboardType = TextInputType.text}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: Column(
@@ -110,7 +153,7 @@ class _AddProductPageState extends State<AddProductPage> {
           Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           TextFormField(
-            initialValue: initialValue,
+            controller: controller,
             keyboardType: keyboardType,
             decoration: InputDecoration(
               filled: true,
@@ -127,45 +170,80 @@ class _AddProductPageState extends State<AddProductPage> {
     const Color primaryBlue = Color(0xFF0D47A1);
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
-      
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('Product Image', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          DottedBorder(
-            color: Colors.blue.shade300,
-            strokeWidth: 1,
-            dashPattern: const [6, 6],
-            borderType: BorderType.RRect,
-            radius: const Radius.circular(12),
-            child: Container(
-              height: 50,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                spacing: 7.5,
-                children: [
-                  const Icon(Icons.cloud_upload_outlined, color: primaryBlue),
-                  const SizedBox(height: 8),
-                  Text.rich(
-                    TextSpan(
-                      text: 'Drop Files to attach, or ',
-                      style: const TextStyle(color: Colors.grey),
-                      children: [
-                        TextSpan(
-                          text: 'Browse',
-                          style: const TextStyle(color: primaryBlue, fontWeight: FontWeight.bold),
-                          // recognizer can be added here for tap events
-                        ),
-                      ],
-                    ),
-                  )
-                ],
+          GestureDetector(
+            onTap: _pickImage,
+            child: DottedBorder(
+              color: Colors.blue.shade300,
+              strokeWidth: 1,
+              dashPattern: const [6, 6],
+              borderType: BorderType.RRect,
+              radius: const Radius.circular(12),
+              child: Container(
+                height: 65,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: _selectedImage == null
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.cloud_upload_outlined, color: primaryBlue),
+                          const SizedBox(width: 8),
+                          Text.rich(
+                            TextSpan(
+                              text: 'Drop Files to attach, or ',
+                              style: const TextStyle(color: Colors.grey),
+                              children: [
+                                TextSpan(
+                                  text: 'Browse',
+                                  style: const TextStyle(color: primaryBlue, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          )
+                        ],
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Row(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.file(File(_selectedImage!.path), width: 40, height: 40, fit: BoxFit.cover),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      _selectedImage!.name,
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.red),
+                            onPressed: () {
+                              setState(() {
+                                _selectedImage = null;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
               ),
             ),
           )
@@ -173,7 +251,7 @@ class _AddProductPageState extends State<AddProductPage> {
       ),
     );
   }
-  
+
   Widget _buildDropdownField({
     required String label,
     required String? value,
@@ -201,19 +279,31 @@ class _AddProductPageState extends State<AddProductPage> {
       ),
     );
   }
-  
+
   Widget _buildBottomButton(Color color) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: ElevatedButton(
-        onPressed: () {},
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, 50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        child: const Text('Add Product', style: TextStyle(fontSize: 16)),
+      child: BlocBuilder<AddProductBloc, AddProductState>(
+        builder: (context, state) {
+          return ElevatedButton(
+            onPressed: state is AddProductInProgress
+                ? null
+                : () {
+                    context.read<AddProductBloc>().add(
+                          AddProductSubmitted(productName: _productNameController.text),
+                        );
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: state is AddProductInProgress
+                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                : const Text('Add Product', style: TextStyle(fontSize: 16)),
+          );
+        },
       ),
     );
   }

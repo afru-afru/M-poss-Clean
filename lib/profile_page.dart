@@ -9,52 +9,82 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Read the current state from the AuthBloc provided by a parent widget (MainScreen)
     final authState = context.watch<AuthBloc>().state;
 
-    // Check if the user is authenticated and build the UI with their data
     if (authState is AuthSuccess) {
       final user = authState.user;
       return _buildProfileView(context, user);
     }
-
-    // Fallback UI if the state is not AuthSuccess
+    
     return const Center(child: Text('Error: User not authenticated.'));
   }
 
+  // This method is updated to control divider placement
   Widget _buildProfileView(BuildContext context, Map<String, dynamic> user) {
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 16.0),
-      children: [
-        _buildUserInfoCard(user),
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: _buildSettingsGroup([
-            _buildSettingsRow(Icons.notifications_none, 'Notifications', trailing: const Text('ON', style: TextStyle(color: Colors.grey))),
-            _buildSettingsRow(Icons.translate, 'Language', trailing: const Text('English', style: TextStyle(color: Colors.grey))),
-          ]),
-        ),
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: _buildSettingsGroup([
-            _buildSettingsRow(Icons.security, 'Security'),
-            _buildSettingsRow(Icons.nightlight_round, 'Theme', trailing: const Text('Light mode', style: TextStyle(color: Colors.grey))),
-          ]),
-        ),
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: _buildSettingsGroup([
-            _buildSettingsRow(Icons.help_outline, 'Help & Support'),
-            _buildSettingsRow(Icons.contact_mail_outlined, 'Contact us'),
-            _buildSettingsRow(Icons.policy_outlined, 'Privacy policy'),
-          ]),
-        ),
-      ],
+    return Container(
+      color: const Color(0xFFF4F6F8), // Background for the whole page
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 16.0),
+        children: [
+          _buildUserInfoCard(user),
+          const SizedBox(height: 20),
+
+          // --- Settings List with custom dividers ---
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Container(
+              decoration: BoxDecoration(
+                // color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  const SizedBox(height: 10), // Space between card top and first divider
+                  const Divider(height: 1, thickness: 1, indent: 16, endIndent: 16), // Divider above Notifications
+                  _buildSettingsRow(Icons.notifications_none, 'Notifications', trailing: const Text('ON', style: TextStyle(color: Colors.grey))),
+                  _buildSettingsRow(Icons.translate, 'Language', trailing: const Text('English', style: TextStyle(color: Colors.grey))),
+                  const Divider(height: 1, thickness: 1, indent: 16, endIndent: 16), // Divider below Language
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Container(
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  _buildSettingsRow(Icons.security, 'Security'),
+                  _buildSettingsRow(Icons.nightlight_round, 'Theme', trailing: const Text('Light mode', style: TextStyle(color: Colors.grey))),
+                  const Divider(height: 1, thickness: 1, indent: 16, endIndent: 16), // Divider below Theme
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Container(
+              decoration: BoxDecoration( borderRadius: BorderRadius.circular(16)),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  _buildSettingsRow(Icons.help_outline, 'Help & Support'),
+                  _buildSettingsRow(Icons.contact_mail_outlined, 'Contact us'),
+                  _buildSettingsRow(Icons.policy_outlined, 'Privacy policy'),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
+
+  // --- The helper methods below remain the same ---
 
   Widget _buildUserInfoCard(Map<String, dynamic> user) {
     const Color primaryBlue = Color(0xFF0D47A1);
@@ -114,27 +144,6 @@ class ProfilePage extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsGroup(List<Widget> children) {
-    List<Widget> itemsWithDividers = [];
-    for (int i = 0; i < children.length; i++) {
-      itemsWithDividers.add(children[i]);
-      if (i < children.length - 1) {
-        itemsWithDividers.add(const Divider(height: 1, thickness: 1, indent: 16, endIndent: 16));
-      }
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: itemsWithDividers,
       ),
     );
   }

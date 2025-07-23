@@ -1,0 +1,30 @@
+{
+  "orderNumber": "0093",
+  "orderType": "POS Order",
+  "orderDate": "2025-07-14",
+  "time": "10:28 AM",
+  "status": "Completed",
+  "companyInfo": {
+    "name": "Matrix Technologies",
+    "tinNumber": "00023467294"
+  },
+  "lineItems": [
+    {
+      "productName": "Dry Snak",
+      "quantity": 15,
+      "total": 30000
+    },
+    {
+      "productName": "Cold Cereals",
+      "quantity": 10,
+      "total": 30000
+    }
+  ],
+  "financialSummary": {
+    "subtotal": 60000.00,
+    "tax": 9000.00,
+    "delivery": 250.00,
+    "discount": 4500.00,
+    "total": 64750.00
+  }
+}

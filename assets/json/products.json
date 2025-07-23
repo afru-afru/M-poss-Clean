@@ -38,7 +38,7 @@
   {
     "id": "P0002",
     "name": "Penne",
-    "imageUrl": "assets/product_placeholder.png",
+    "imageUrl": "assets/product1.png",
     "category": "Pasta",
     "price": 250.00,
     "unit": "Pack",
@@ -47,7 +47,7 @@
   {
     "id": "P0001",
     "name": "Mayonnaise",
-    "imageUrl": "assets/product_placeholder.png",
+    "imageUrl": "assets/product3.png",
     "category": "Condiment",
     "price": 400.00,
     "unit": "Jar",

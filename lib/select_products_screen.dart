@@ -1,83 +1,74 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'add_invoice_screen.dart';
+import 'bloc/cart_bloc.dart';
 
-class SelectProductsScreen extends StatefulWidget {
+class SelectProductsScreen extends StatelessWidget {
   const SelectProductsScreen({super.key});
 
   @override
-  State<SelectProductsScreen> createState() => _SelectProductsScreenState();
-}
-
-class _SelectProductsScreenState extends State<SelectProductsScreen> {
-  // Declare the list here
-  List<Map<String, dynamic>> _products = [];
-
-  // This is a constant list, so it's fine to initialize here.
-  final List<String> _productImages = [
-    'assets/product1.png',
-    'assets/product2.png',
-    'assets/product3.png',
-    'assets/product4.png',
-  ];
-
-  // Initialize the data when the widget is first created
-  @override
-  void initState() {
-    super.initState();
-    // Generate the products list inside initState
-    _products = List.generate(
-      10,
-      (index) => {
-        'id': index,
-        'name': 'Product Name',
-        'image': _productImages[index % _productImages.length],
-        'price': 3000,
-        'quantity': index % 3,
-      },
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => CartBloc()..add(LoadCartProducts()),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF4F6F8),
+        body: BlocBuilder<CartBloc, CartState>(
+          builder: (context, state) {
+            if (state is CartLoading || state is CartInitial) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (state is CartLoaded) {
+              return _buildProductSelectionView(context, state.products);
+            }
+            if (state is CartError) {
+              return Center(child: Text(state.message));
+            }
+            return const Center(child: Text('Something went wrong.'));
+          },
+        ),
+      ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Calculate totals based on the current state
+  Widget _buildProductSelectionView(BuildContext context, List<Map<String, dynamic>> products) {
     int totalProducts = 0;
     double totalPrice = 0;
-    for (var product in _products) {
+    for (var product in products) {
       if (product['quantity'] > 0) {
         totalProducts += product['quantity'] as int;
-        totalPrice += (product['quantity'] as int) * (product['price'] as int);
+        totalPrice += (product['quantity'] as int) * (product['price'] as double);
       }
     }
 
-    // The Scaffold and AppBar have been removed. The widget now returns a Stack directly.
-    return  Material( 
-        color: const Color(0xFFF4F6F8),
-    child:Stack(
-      children: [
-        Column(
-          children: [
-            _buildSearchBar(),
-            _buildHeader(),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.only(bottom: 100), // Padding to avoid overlap with summary bar
-                itemCount: _products.length,
-                itemBuilder: (context, index) {
-                  return _buildProductItem(index);
-                },
+    return Material(
+      color: const Color(0xFFF4F6F8),
+      child: Stack(
+        children: [
+          Column(
+            children: [
+              _buildSearchBar(),
+              _buildHeader(),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 100),
+                  itemCount: products.length,
+                  itemBuilder: (context, index) {
+                    return _buildProductItem(context, products[index]);
+                  },
+                ),
               ),
-            ),
-          ],
-        ),
-        // Floating Summary Bar at the bottom
-        _buildSummaryBar(totalPrice, totalProducts),
-      ],
-    ));
+            ],
+          ),
+          _buildSummaryBar(context, totalPrice, totalProducts),
+        ],
+      ),
+    );
   }
 
   Widget _buildSearchBar() {
     return Container(
-       color: Color(0xFFEFF4FF),
+      color: const Color(0xFFEFF4FF),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       child: TextField(
         decoration: InputDecoration(
@@ -85,7 +76,6 @@ class _SelectProductsScreenState extends State<SelectProductsScreen> {
           prefixIcon: const Icon(Icons.search, color: Colors.grey),
           filled: true,
           fillColor: const Color(0xFFFFFFFF),
-          
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
             borderSide: BorderSide.none,
@@ -98,12 +88,11 @@ class _SelectProductsScreenState extends State<SelectProductsScreen> {
 
   Widget _buildHeader() {
     return Container(
-      // color: Colors.white,
-      // padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Select Products', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold,color: Color(0xFF1E3A8A))),
+          Text('Select Products', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
           SizedBox(height: 4),
           Text('Search a product name and add to the invoice', style: TextStyle(color: Colors.grey)),
         ],
@@ -111,71 +100,60 @@ class _SelectProductsScreenState extends State<SelectProductsScreen> {
     );
   }
 
- // In _SelectProductsScreenState, replace the old _buildProductItem method
-
-Widget _buildProductItem(int index) {
-  final product = _products[index];
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
-    child: Card(
-      color: Colors.white,
-      elevation: 1,
-      shape:  RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        // Add this 'side' property for the border
-        side: BorderSide(
-          color: Color(0xFFE0E0E0),
-          width: 1,
+  Widget _buildProductItem(BuildContext context, Map<String, dynamic> product) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+      child: Card(
+        color: Colors.white,
+        elevation: 1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: Color(0xFFE0E0E0), width: 1),
         ),
-      ),
-      // This is important: it forces the image to have rounded corners
-      clipBehavior: Clip.antiAlias,
-      child: Row(
-        children: [
-          // 1. The Image is now a direct child of the Row
-          Image.asset(
-            product['image'],
-            width: 90, // Set a fixed width for the image
-            height: 90,
-            fit: BoxFit.cover,
-          ),
-          // 2. The rest of the content is wrapped in Expanded and Padding
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(product['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        const SizedBox(height: 4),
-                        Text('Quantity : ${product['quantity']}    Total : ${product['price'] * product['quantity']}',
-                            style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                      ],
+        clipBehavior: Clip.antiAlias,
+        child: Row(
+          children: [
+            Image.asset(
+              product['imageUrl'],
+              width: 90,
+              height: 90,
+              fit: BoxFit.cover,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(product['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const SizedBox(height: 4),
+                          Text('Quantity : ${product['quantity']}    Total : ${product['price'] * product['quantity']}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        ],
+                      ),
                     ),
-                  ),
-                  _buildQuantityAdjuster(index),
-                ],
+                    _buildQuantityAdjuster(context, product),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
-  Widget _buildQuantityAdjuster(int index) {
-    int quantity = _products[index]['quantity'];
+    );
+  }
+
+  Widget _buildQuantityAdjuster(BuildContext context, Map<String, dynamic> product) {
+    int quantity = product['quantity'];
+    String productId = product['id'];
 
     if (quantity == 0) {
       return TextButton.icon(
         onPressed: () {
-          setState(() {
-            _products[index]['quantity']++;
-          });
+          context.read<CartBloc>().add(AddCartItem(productId));
         },
         icon: const Icon(Icons.add),
         label: const Text('Add'),
@@ -184,65 +162,56 @@ Widget _buildProductItem(int index) {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
-    } 
-    else {
+    } else {
       return Row(
-      children: [
-        // Minus Button
-        _buildAdjusterButton(
-          icon: Icons.remove,
-          onPressed: () {
-            if (quantity > 0) {
-              setState(() {
-                _products[index]['quantity']--;
-              });
-            }
-          },
-          backgroundColor: Colors.grey.shade300, // Grey background
-          iconColor: Colors.white,      // Dark grey icon
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Text('$quantity', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        ),
-        // Plus Button
-        _buildAdjusterButton(
-          icon: Icons.add,
-          onPressed: () {
-            setState(() {
-              _products[index]['quantity']++;
-            });
-          },
-          backgroundColor: Colors.blue,          // Blue background
-          iconColor: Colors.white,               // White icon
-        ),
-      ],
-    );
+        children: [
+          _buildAdjusterButton(
+            icon: Icons.remove,
+            onPressed: () {
+              context.read<CartBloc>().add(RemoveCartItem(productId));
+            },
+            backgroundColor: Colors.grey.shade300,
+            iconColor: Colors.grey.shade800,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Text('$quantity', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+          _buildAdjusterButton(
+            icon: Icons.add,
+            onPressed: () {
+              context.read<CartBloc>().add(AddCartItem(productId));
+            },
+            backgroundColor: Colors.blue,
+            iconColor: Colors.white,
+          ),
+        ],
+      );
     }
-  
   }
-Widget _buildAdjusterButton({
-  required IconData icon,
-  required VoidCallback onPressed,
-  required Color backgroundColor,
-  required Color iconColor,
-}) {
-  return Container(
-    width: 32,
-    height: 32,
-    decoration: BoxDecoration(
-      color: backgroundColor, // Use the passed-in color
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: IconButton(
-      padding: EdgeInsets.zero,
-      icon: Icon(icon, color: iconColor, size: 18), // Use the passed-in color
-      onPressed: onPressed,
-    ),
-  );
-}
 
-  Widget _buildSummaryBar(double totalPrice, int totalProducts) {
+  Widget _buildAdjusterButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required Color backgroundColor,
+    required Color iconColor,
+  }) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, color: iconColor, size: 18),
+        onPressed: onPressed,
+      ),
+    );
+  }
+
+  Widget _buildSummaryBar(BuildContext context, double totalPrice, int totalProducts) {
     return Positioned(
       bottom: 16,
       left: 16,
@@ -267,20 +236,17 @@ Widget _buildAdjusterButton({
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${totalPrice.toStringAsFixed(0)} ETB',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                Text('Number of Products : $totalProducts',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                Text('${totalPrice.toStringAsFixed(0)} ETB', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('Number of Products : $totalProducts', style: const TextStyle(color: Colors.white70, fontSize: 12)),
               ],
             ),
             const Spacer(),
             ElevatedButton(
-            // Inside _buildSummaryBar in select_products_screen.dart
-onPressed: () {
-  Navigator.of(context, rootNavigator: true).push( // This uses the main navigator
-    MaterialPageRoute(builder: (context) => const AddInvoiceScreen()),
-  );
-},
+              onPressed: () {
+                Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute(builder: (context) => const AddInvoiceScreen()),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: const Color(0xFF0D47A1),

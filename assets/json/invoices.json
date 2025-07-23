@@ -1,30 +1,50 @@
 [
   {
-    "orderNumber": "00032",
+    "orderNumber": "0093",
     "orderType": "POS Order",
-    "orderDate": "2025-07-20",
+    "orderDate": "2025-07-14",
+    "time": "10:28 AM",
     "status": "Completed",
     "totalAmount": 64750.00
   },
   {
-    "orderNumber": "00031",
+    "orderNumber": "0092",
     "orderType": "Online Order",
-    "orderDate": "2025-07-19",
+    "orderDate": "2025-07-14",
+    "time": "09:15 AM",
     "status": "Pending",
-    "totalAmount": 12500.00
+    "totalAmount": 14875.00
   },
-  {
-    "orderNumber": "00030",
+   {
+    "orderNumber": "0094",
     "orderType": "POS Order",
-    "orderDate": "2025-07-19",
+    "orderDate": "2025-07-17",
+    "time": "10:28 AM",
     "status": "Completed",
-    "totalAmount": 8900.50
+    "totalAmount": 64750.00
   },
   {
-    "orderNumber": "00029",
-    "orderType": "POS Order",
+    "orderNumber": "0092",
+    "orderType": "Online Order",
     "orderDate": "2025-07-18",
-    "status": "Cancelled",
-    "totalAmount": 3400.00
+    "time": "08:15 AM",
+    "status": "Pending",
+    "totalAmount": 14875.00
+  },
+   {
+    "orderNumber": "0096",
+    "orderType": "POS Order",
+    "orderDate": "2025-07-10",
+    "time": "10:28 AM",
+    "status": "Completed",
+    "totalAmount": 64750.00
+  },
+  {
+    "orderNumber": "0097",
+    "orderType": "Online Order",
+    "orderDate": "2025-07-14",
+    "time": "09:15 AM",
+    "status": "Pending",
+    "totalAmount": 14875.00
   }
 ]
