@@ -1,4 +1,4 @@
-// lib/invoice_detail_page.dart
+
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -53,7 +53,7 @@ class InvoiceDetailPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        // Company Info
+       
         Text('Billed To:', style: TextStyle(color: Colors.grey.shade600)),
         const SizedBox(height: 8),
         Text(companyInfo['name'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),

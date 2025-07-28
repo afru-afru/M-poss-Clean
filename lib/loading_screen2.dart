@@ -1,7 +1,7 @@
-// lib/loading_screen.dart
+
 
 import 'package:flutter/material.dart';
-import 'login_screen.dart'; // Navigates to this screen on tap
+import 'login_screen.dart'; 
 
 class LoadingScreen extends StatelessWidget {
   const LoadingScreen({super.key});
@@ -17,7 +17,7 @@ class LoadingScreen extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Bottom cityscape image
+        
           Positioned(
             bottom: 0,
             left: 0,
@@ -71,14 +71,14 @@ class LoadingScreen extends StatelessWidget {
                     children: [
                       _buildLoginOption(
                         context: context,
-                        // IMPORTANT: Change this to your actual admin image path
+                        
                         imagePath: 'assets/adminLogo.png',
                         title: 'ADMIN',
                         subtitle: 'login to manage system settings and users',
                       ),
                       _buildLoginOption(
                         context: context,
-                        // IMPORTANT: Change this to your actual sales image path
+                        
                         imagePath: 'assets/salesLogo.png',
                         title: 'SALES',
                         subtitle: 'login to access your cashier account',

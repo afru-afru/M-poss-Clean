@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart'; // 1. Import BLoC
-import 'bloc/auth_bloc.dart';                 // 2. Import your AuthBloc
+import 'package:flutter_bloc/flutter_bloc.dart'; 
+import 'bloc/auth_bloc.dart';                 
 import 'home_screen.dart';
 import 'product_page.dart';
 import 'report_page.dart';
@@ -38,7 +38,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     const Color primaryBlue = Color(0xFF3B82F6);
     
-    // 3. Get the user's data from the AuthBloc's state
+    //  Get the user's data from the AuthBloc's state
     final authState = context.watch<AuthBloc>().state;
     String userName = 'User'; // Default name
     if (authState is AuthSuccess) {
@@ -60,7 +60,7 @@ class _MainScreenState extends State<MainScreen> {
             onPressed: () {},
             child: Row(
               children: [
-                // 4. Display the dynamic user name from the BLoC
+                //  Display the dynamic user name from the BLoC
                 Text(
                   userName,
                   style: const TextStyle(color: primaryBlue, fontWeight: FontWeight.bold),

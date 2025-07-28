@@ -1,4 +1,4 @@
-// lib/add_product_page.dart
+
 
 import 'dart:io';
 import 'package:dotted_border/dotted_border.dart';

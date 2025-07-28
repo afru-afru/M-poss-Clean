@@ -39,7 +39,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   void dispose() {
-    _timer.cancel(); // Important to cancel timer to avoid memory leaks
+    _timer.cancel(); 
     super.dispose();
   }
 
@@ -79,7 +79,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 40),
-              // This would be where you put your OTP input field
+             
               const Text(
                 'OTP FIELD PLACEHOLDER',
                  textAlign: TextAlign.center,

@@ -1,7 +1,6 @@
-import 'dart:async'; // 1. Import the async library for Timer
+import 'dart:async'; 
 import 'package:flutter/material.dart';
-import 'login_screen.dart'; // 2. Import the login screen
-
+import 'login_screen.dart'; 
 class LoadingScreen extends StatefulWidget {
   const LoadingScreen({super.key});
 
@@ -20,7 +19,7 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
       vsync: this,
     )..repeat();
 
-    // 3. ADD THIS BLOCK to navigate after 4 seconds
+   
     Timer(const Duration(seconds: 4), () {
       // This check ensures the screen is still visible before navigating
       if (mounted) {
@@ -39,14 +38,14 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    // Define the primary blue color from the image
+  
     const Color primaryBlue = Color(0xFF1A3C8B);
 
     return Scaffold(
       backgroundColor: primaryBlue,
       body: Stack(
         children: [
-          // 1. Bottom Cityscape Image
+       
           Positioned(
             bottom: 0,
             left: 0,
@@ -65,7 +64,7 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
             ),
           ),
           
-          // 2. Main Content (Loader and Text)
+          
           SafeArea(
             child: Center(
               child: Padding(
@@ -100,7 +99,7 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
                     ),
                     const SizedBox(height: 16),
 
-                    // Body Text
+                  
                     Text(
                       'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.' * 2, // Repeated for length
                       textAlign: TextAlign.center,
@@ -110,7 +109,7 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
                         height: 1.5,
                       ),
                     ),
-                    const SizedBox(height: 100), // Pushes content up from cityscape
+                    const SizedBox(height: 100), 
                   ],
                 ),
               ),

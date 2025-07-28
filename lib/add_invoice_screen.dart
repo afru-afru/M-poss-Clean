@@ -1,4 +1,4 @@
-// lib/add_invoice_screen.dart
+
 
 import 'package:flutter/material.dart';
 
@@ -19,7 +19,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
-      // This page now has its OWN AppBar with a back button
+      
       appBar: _buildAppBar(context),
       body: SingleChildScrollView(
         child: Column(

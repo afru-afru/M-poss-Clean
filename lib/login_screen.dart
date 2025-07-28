@@ -1,4 +1,4 @@
-// lib/login_screen.dart
+
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -57,6 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return BlocProvider(
       create: (context) => AuthBloc(),
       child: Scaffold(
+         resizeToAvoidBottomInset: false,
         backgroundColor: Colors.white,
         body: BlocListener<AuthBloc, AuthState>(
           listener: (context, state) {
@@ -65,7 +66,7 @@ if (state is AuthSuccess) {
   _handleRememberMe().then((_) {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        // Use BlocProvider.value to pass the existing AuthBloc
+        
         builder: (_) => BlocProvider.value(
           value: context.read<AuthBloc>(),
           child: const MainScreen(),
@@ -79,7 +80,7 @@ if (state is AuthSuccess) {
                 SnackBar(content: Text(state.error), backgroundColor: Colors.red),
               );
             }
-          },
+          },  
           child: _buildBody(),
         ),
       ),
