@@ -6,11 +6,21 @@ abstract class InvoicesEvent extends Equatable {
   List<Object> get props => [];
 }
 
-class LoadInvoices extends InvoicesEvent {}
+// Event to load the initial list of invoices
+class LoadInvoices extends InvoicesEvent {
+  final String token;
+  final String companyId;
+  const LoadInvoices({required this.token, required this.companyId});
+  @override
+  List<Object> get props => [token, companyId];
+}
 
+// Event to search for invoices
 class SearchInvoices extends InvoicesEvent {
   final String query;
-  const SearchInvoices({required this.query});
+  final String token;
+  final String companyId;
+  const SearchInvoices({required this.query, required this.token, required this.companyId});
   @override
-  List<Object> get props => [query];
+  List<Object> get props => [query, token, companyId];
 }

@@ -1,48 +1,107 @@
-
-
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'bloc/auth_bloc.dart';
+import 'bloc/create_invoice_bloc.dart';
+import 'bloc/buyers_bloc.dart';
 
 class AddInvoiceScreen extends StatefulWidget {
-  const AddInvoiceScreen({super.key});
+  final List<Map<String, dynamic>> selectedProducts;
+
+  const AddInvoiceScreen({super.key, required this.selectedProducts});
 
   @override
   State<AddInvoiceScreen> createState() => _AddInvoiceScreenState();
 }
 
 class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
-  String? _selectedCompany = 'Matrix Technologies';
-  final List<String> _companyOptions = ['Matrix Technologies', 'Another Company', 'Client Inc.'];
+  final _tinController = TextEditingController();
+  Map<String, dynamic>? _selectedBuyer;
+
+  double _subtotal = 0;
+  double _tax = 0;
+  double _total = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _calculateTotals();
+  }
+
+  void _calculateTotals() {
+    double currentSubtotal = 0;
+    for (var product in widget.selectedProducts) {
+      final price = product['price'] is String ? double.tryParse(product['price']) ?? 0.0 : product['price'];
+      currentSubtotal += (product['quantity'] as int) * (price as num);
+    }
+    
+    const taxRate = 0.15; // Using a fixed 15% tax rate
+
+    setState(() {
+      _subtotal = currentSubtotal;
+      _tax = _subtotal * taxRate;
+      _total = _subtotal + _tax;
+    });
+  }
+
+  @override
+  void dispose() {
+    _tinController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryBlue = Color(0xFF0D47A1);
+    const Color primaryBlue = Color(0xFF3B82F6);
+    final authState = context.read<AuthBloc>().state;
+    String token = '';
+    if (authState is AuthSuccess) {
+      token = authState.user['access_token'] ?? '';
+    }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F8),
-      
-      appBar: _buildAppBar(context),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildSearchBar(),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSummaryCard(),
-                  const SizedBox(height: 24),
-                  _buildCompanyInfoSection(),
-                  const SizedBox(height: 24),
-                  _buildFinancialSummary(),
-                ],
-              ),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (context) => CreateInvoiceBloc()),
+        BlocProvider(create: (context) => BuyersBloc()..add(LoadBuyers(token: token))),
+      ],
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF4F6F8),
+        appBar: _buildAppBar(context),
+        body: BlocListener<CreateInvoiceBloc, CreateInvoiceState>(
+          listener: (context, state) {
+            if (state is CreateInvoiceSuccess) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Invoice created successfully!'), backgroundColor: Colors.green),
+              );
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            } else if (state is CreateInvoiceFailure) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(state.error), backgroundColor: Colors.red),
+              );
+            }
+          },
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildSearchBar(),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildProductSummaryList(),
+                      const SizedBox(height: 24),
+                      _buildCompanyInfoSection(),
+                      const SizedBox(height: 24),
+                      _buildFinancialSummary(),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
+        bottomNavigationBar: _buildBottomButton(primaryBlue),
       ),
-      // This page has its OWN bottom button, NOT the shared navigation bar
-      bottomNavigationBar: _buildBottomButton(primaryBlue),
     );
   }
 
@@ -60,16 +119,11 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
       actions: [
         TextButton(
           onPressed: () {},
-          child:  Row(
+          child: const Row(
             children: [
-              Text('Hiwot M.', style: TextStyle(color: primaryBlue)),
+              Text('Hiwot M.', style: TextStyle(color: primaryBlue, fontWeight: FontWeight.bold)),
               SizedBox(width: 4),
-                  Image.asset(
-        'assets/dropdownIcon.png', 
-        width: 10, 
-        height: 10,
-        
-      ),
+              Icon(Icons.keyboard_arrow_down, color: primaryBlue),
             ],
           ),
         ),
@@ -79,7 +133,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
 
   Widget _buildSearchBar() {
     return Container(
-     color: Color(0xFFEFF4FF),
+     color: const Color(0xFFEFF4FF),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       child: TextField(
         decoration: InputDecoration(
@@ -93,29 +147,26 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
       ),
     );
   }
-Widget _buildSummaryCard() {
-  return SizedBox( // Wrap the Card with a SizedBox
-    width: double.infinity, // Force it to take the full width
-    child: Card(
-      elevation: 1,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: const Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Product Name', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-            SizedBox(height: 8),
-            Text('Dry Snak', style: TextStyle(color: Colors.black, fontSize: 14)),
-            Text('Quantity : 1', style: TextStyle(color: Colors.black, fontSize: 14)),
-            Text('Total : 30,000 ETB', style: TextStyle(color: Colors.black, fontSize: 14)),
-          ],
-        ),
-      ),
-    ),
-  );
-}
+
+  Widget _buildProductSummaryList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Products', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        const SizedBox(height: 8),
+        ...widget.selectedProducts.map((product) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Text(
+              '${product['name']} (Qty: ${product['quantity']})',
+              style: const TextStyle(color: Colors.black, fontSize: 14)
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
   Widget _buildCompanyInfoSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,30 +176,53 @@ Widget _buildSummaryCard() {
         const SizedBox(height: 16),
         const Text('Company Name', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: _selectedCompany,
-          items: _companyOptions.map((String value) {
-            return DropdownMenuItem<String>(value: value, child: Text(value));
-          }).toList(),
-          onChanged: (newValue) {
-            setState(() {
-              _selectedCompany = newValue;
-            });
+        BlocBuilder<BuyersBloc, BuyersState>(
+          builder: (context, state) {
+            if (state is BuyersLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (state is BuyersLoaded) {
+              if (_selectedBuyer == null && state.buyers.isNotEmpty) {
+                _selectedBuyer = state.buyers[0];
+                _tinController.text = _selectedBuyer!['tin'] ?? '';
+              }
+              return DropdownButtonFormField<Map<String, dynamic>>(
+                value: _selectedBuyer,
+                isExpanded: true,
+                items: state.buyers.map((buyer) {
+                  return DropdownMenuItem<Map<String, dynamic>>(
+                    value: buyer,
+                    child: Text(buyer['legal_name'] ?? 'Unknown Buyer', overflow: TextOverflow.ellipsis),
+                  );
+                }).toList(),
+                onChanged: (newValue) {
+                  setState(() {
+                    _selectedBuyer = newValue;
+                    _tinController.text = newValue?['tin'] ?? '';
+                  });
+                },
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0), borderSide: BorderSide.none),
+                ),
+              );
+            }
+            if (state is BuyersError) {
+              return Text('Error: ${state.message}');
+            }
+            return const Text('Could not load companies.');
           },
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0), borderSide: BorderSide.none),
-          ),
         ),
         const SizedBox(height: 16),
         const Text('Company TIN Number', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         TextFormField(
-          initialValue: '00023467294',
+          controller: _tinController,
+          readOnly: true,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white,
+            fillColor: Colors.grey.shade200,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0), borderSide: BorderSide.none),
           ),
         ),
@@ -157,26 +231,20 @@ Widget _buildSummaryCard() {
   }
 
   Widget _buildFinancialSummary() {
-   
     return Container(
        color:Colors.grey.shade100,
-      
-    child:Column(
-      
-      
+      padding: const EdgeInsets.all(16.0),
+      child:Column(
       children: [
-        
-        _buildSummaryRow('Total (Before VAT)', '60,000 ETB', isTotal: true),
+        _buildSummaryRow('Total (Before VAT)', '${_subtotal.toStringAsFixed(2)} ETB', isTotal: true),
         const Divider(),
-        _buildSummaryRow('Tax 15%', '(+) 9,000 ETB'),
+        _buildSummaryRow('Tax 15%', '(+) ${_tax.toStringAsFixed(2)} ETB'),
         const Divider(),
-        _buildSummaryRow('Delivery', '(+) 250 ETB'),
+        _buildSummaryRow('Delivery', '(+) 250.00 ETB'),
         const Divider(),
-        _buildSummaryRow('Discount', '(-) 4,500 ETB'),
+        _buildSummaryRow('Discount', '(-) 0.00 ETB'),
         const Divider(),
-        _buildSummaryRow('Discount', '0 ETB'),
-        const Divider(),
-        _buildSummaryRow('Total Amount :', '64,750 ETB', isTotal: true),
+        _buildSummaryRow('Total Amount :', '${(_total + 250).toStringAsFixed(2)} ETB'),
       ],
     ));
   }
@@ -186,9 +254,7 @@ Widget _buildSummaryCard() {
     final FontWeight fontWeight = isTotal ? FontWeight.w900 : FontWeight.normal;
     final double fontSize = isTotal ? 18 : 14;
     
-
     return Padding(
-      
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -203,15 +269,68 @@ Widget _buildSummaryCard() {
   Widget _buildBottomButton(Color color) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: ElevatedButton(
-        onPressed: () {},
-        style: ElevatedButton.styleFrom(
-          backgroundColor:Color(0xFF3B82F6),
-          foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, 50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        child: const Text('Add Invoice', style: TextStyle(fontSize: 16)),
+      child: BlocBuilder<CreateInvoiceBloc, CreateInvoiceState>(
+        builder: (context, state) {
+          return ElevatedButton(
+            onPressed: state is CreateInvoiceInProgress
+                ? null
+                : () {
+                    final authState = context.read<AuthBloc>().state;
+                    String token = '';
+                    String companyId = '';
+
+                    if (authState is AuthSuccess) {
+                      token = authState.user['access_token'] ?? '';
+                      companyId = authState.user['companyId'] ?? '';
+                    }
+
+                    if (token.isEmpty || companyId.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Authentication error. Please log in again.'), backgroundColor: Colors.red),
+                      );
+                      return;
+                    }
+
+                    final List<Map<String, dynamic>> itemsPayload = widget.selectedProducts.map((product) {
+                      int index = widget.selectedProducts.indexOf(product);
+                      return {
+                        "description": product['name'],
+                        "discount": 0,
+                        "excise_tax_value": 0,
+                        "line_number": index + 1,
+                        "product_id": product['id'],
+                        "quantity": product['quantity'],
+                        "tax_code": "VAT15", // Hardcoded tax code
+                        "unit_price": product['price']
+                      };
+                    }).toList();
+
+                    final invoicePayload = {
+                      "buyer_tin": _tinController.text,
+                      "company_id": companyId,
+                      "document_type": "INV",
+                      "excise_value": 0,
+                      "invoice_currency": "ETB",
+                      "items": itemsPayload,
+                      "payment_mode": "CASH",
+                      "payment_term": "IMMIDIATE",
+                      "transaction_type": "B2B",
+                      "transaction_withhold_value": 0
+                    };
+                    
+                    context.read<CreateInvoiceBloc>().add(SubmitInvoice(invoiceData: invoicePayload, token: token));
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3B82F6),
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: state is CreateInvoiceInProgress
+                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                : const Text('Add Invoice', style: TextStyle(fontSize: 16)),
+          );
+        },
       ),
     );
   }

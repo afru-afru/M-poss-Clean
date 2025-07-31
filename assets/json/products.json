@@ -1,6 +1,6 @@
 [
   {
-    "id": "P0006",
+    "id": "p003",
     "name": "Cold Cereals",
     "imageUrl": "assets/product1.png",
     "category": "Dry Food",
@@ -9,7 +9,7 @@
     "quantityInStock": 120
   },
   {
-    "id": "P0005",
+    "id": "p002",
     "name": "Chocolate Bar",
     "imageUrl": "assets/product2.png",
     "category": "Snacks",
@@ -18,7 +18,7 @@
     "quantityInStock": 300
   },
   {
-    "id": "P0004",
+    "id": "p004",
     "name": "Omar Vegetable Oil",
     "imageUrl": "assets/product3.png",
     "category": "Cooking",
@@ -27,7 +27,7 @@
     "quantityInStock": 80
   },
   {
-    "id": "P0003",
+    "id": "p005",
     "name": "Eggs",
     "imageUrl": "assets/product4.png",
     "category": "Dairy",
@@ -36,7 +36,7 @@
     "quantityInStock": 500
   },
   {
-    "id": "P0002",
+    "id": "p006",
     "name": "Penne",
     "imageUrl": "assets/product1.png",
     "category": "Pasta",

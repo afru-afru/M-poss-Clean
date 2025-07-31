@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/foundation.dart';
 import 'add_invoice_screen.dart';
+import 'bloc/auth_bloc.dart';
 import 'bloc/cart_bloc.dart';
 
 class SelectProductsScreen extends StatelessWidget {
@@ -10,13 +11,13 @@ class SelectProductsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => CartBloc()..add(LoadCartProducts()),
+      create: (context) => CartBloc(),
       child: Scaffold(
         backgroundColor: const Color(0xFFF4F6F8),
         body: BlocBuilder<CartBloc, CartState>(
           builder: (context, state) {
-            if (state is CartLoading || state is CartInitial) {
-              return const Center(child: CircularProgressIndicator());
+            if (state is CartLoading) {
+              return _buildProductSelectionView(context, [], isLoading: true);
             }
             if (state is CartLoaded) {
               return _buildProductSelectionView(context, state.products);
@@ -24,20 +25,21 @@ class SelectProductsScreen extends StatelessWidget {
             if (state is CartError) {
               return Center(child: Text(state.message));
             }
-            return const Center(child: Text('Something went wrong.'));
+            return _buildProductSelectionView(context, []);
           },
         ),
       ),
     );
   }
 
-  Widget _buildProductSelectionView(BuildContext context, List<Map<String, dynamic>> products) {
+  Widget _buildProductSelectionView(BuildContext context, List<Map<String, dynamic>> products, {bool isLoading = false}) {
     int totalProducts = 0;
     double totalPrice = 0;
     for (var product in products) {
       if (product['quantity'] > 0) {
         totalProducts += product['quantity'] as int;
-        totalPrice += (product['quantity'] as int) * (product['price'] as double);
+        final price = product['price'] is String ? double.tryParse(product['price']) ?? 0.0 : product['price'];
+        totalPrice += (product['quantity'] as int) * (price as num);
       }
     }
 
@@ -47,16 +49,25 @@ class SelectProductsScreen extends StatelessWidget {
         children: [
           Column(
             children: [
-              _buildSearchBar(),
+              _buildSearchBar(context),
               _buildHeader(),
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 100),
-                  itemCount: products.length,
-                  itemBuilder: (context, index) {
-                    return _buildProductItem(context, products[index]);
-                  },
-                ),
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : products.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'Start typing to search for products.',
+                              style: TextStyle(color: Colors.grey, fontSize: 16),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.only(bottom: 100),
+                            itemCount: products.length,
+                            itemBuilder: (context, index) {
+                              return _buildProductItem(context, products[index]);
+                            },
+                          ),
               ),
             ],
           ),
@@ -66,11 +77,25 @@ class SelectProductsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(BuildContext context) {
     return Container(
       color: const Color(0xFFEFF4FF),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       child: TextField(
+        onChanged: (query) {
+          final authState = context.read<AuthBloc>().state;
+          String token = '';
+          String companyId = '';
+
+          if (authState is AuthSuccess) {
+            token = authState.user['access_token'] ?? '';
+            companyId = authState.user['companyId'] ?? '';
+          }
+          
+          debugPrint("Searching with token: $token and companyId: $companyId");
+
+          context.read<CartBloc>().add(SearchCartProducts(query: query, token: token, companyId: companyId));
+        },
         decoration: InputDecoration(
           hintText: 'Search',
           prefixIcon: const Icon(Icons.search, color: Colors.grey),
@@ -101,6 +126,9 @@ class SelectProductsScreen extends StatelessWidget {
   }
 
   Widget _buildProductItem(BuildContext context, Map<String, dynamic> product) {
+    final price = product['price'] is String ? double.tryParse(product['price']) ?? 0.0 : product['price'];
+    final total = (price as num) * (product['quantity'] as int);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
       child: Card(
@@ -113,11 +141,19 @@ class SelectProductsScreen extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Row(
           children: [
-            Image.asset(
-              product['imageUrl'],
+            Image.network(
+              product['imageUrl'] ?? 'https://via.placeholder.com/90',
               width: 90,
               height: 90,
               fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: 90,
+                  height: 90,
+                  color: Colors.grey[200],
+                  child: const Icon(Icons.image_not_supported, color: Colors.grey),
+                );
+              },
             ),
             Expanded(
               child: Padding(
@@ -129,9 +165,9 @@ class SelectProductsScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(product['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text(product['name'] ?? 'No Name', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                           const SizedBox(height: 4),
-                          Text('Quantity : ${product['quantity']}    Total : ${product['price'] * product['quantity']}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text('Quantity : ${product['quantity']}    Total : ${total.toStringAsFixed(2)}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
                         ],
                       ),
                     ),
@@ -170,7 +206,7 @@ class SelectProductsScreen extends StatelessWidget {
             onPressed: () {
               context.read<CartBloc>().add(RemoveCartItem(productId));
             },
-            backgroundColor: Colors.grey.shade300,
+            backgroundColor: Colors.grey.shade200,
             iconColor: Colors.grey.shade800,
           ),
           Padding(
@@ -236,16 +272,33 @@ class SelectProductsScreen extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${totalPrice.toStringAsFixed(0)} ETB', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('${totalPrice.toStringAsFixed(2)} ETB', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                 Text('Number of Products : $totalProducts', style: const TextStyle(color: Colors.white70, fontSize: 12)),
               ],
             ),
             const Spacer(),
             ElevatedButton(
               onPressed: () {
-                Navigator.of(context, rootNavigator: true).push(
-                  MaterialPageRoute(builder: (context) => const AddInvoiceScreen()),
-                );
+                final cartState = context.read<CartBloc>().state;
+                final authBloc = context.read<AuthBloc>();
+
+                if (cartState is CartLoaded) {
+                  final selectedProducts = cartState.products.where((p) => p['quantity'] > 0).toList();
+                  if (selectedProducts.isNotEmpty) {
+                    Navigator.of(context, rootNavigator: true).push(
+                      MaterialPageRoute(
+                        builder: (_) => BlocProvider.value(
+                          value: authBloc,
+                          child: AddInvoiceScreen(selectedProducts: selectedProducts),
+                        ),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please select at least one product.'), backgroundColor: Colors.orange),
+                    );
+                  }
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
