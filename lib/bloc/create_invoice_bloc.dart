@@ -19,7 +19,7 @@ class CreateInvoiceBloc extends Bloc<CreateInvoiceEvent, CreateInvoiceState> {
     emit(CreateInvoiceInProgress());
     try {
       // Define the API endpoint
-      final url = Uri.parse('http://196.190.251.122:8082/api/v2/invoice/draft');
+      final url = Uri.parse('http://196.190.251.122:8082/api/v2/invoice/pos');
 
       // Make the authenticated POST request
       final response = await http.post(
@@ -33,8 +33,11 @@ class CreateInvoiceBloc extends Bloc<CreateInvoiceEvent, CreateInvoiceState> {
 
       // Check the server's response code
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // If successful, emit the success state
-        emit(CreateInvoiceSuccess());
+        // Parse the response data
+        final responseData = json.decode(response.body);
+        
+        // If successful, emit the success state with response data
+        emit(CreateInvoiceSuccess(responseData: responseData));
       } else {
         // If the server returns an error, handle it
         String errorMessage;

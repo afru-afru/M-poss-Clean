@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'bloc/auth_bloc.dart';
 import 'bloc/create_invoice_bloc.dart';
 import 'bloc/buyers_bloc.dart';
+import 'invoice_print_page.dart'; // Added import for InvoicePrintPage
 
 class AddInvoiceScreen extends StatefulWidget {
   final List<Map<String, dynamic>> selectedProducts;
@@ -72,7 +73,15 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Invoice created successfully!'), backgroundColor: Colors.green),
               );
-              Navigator.of(context).popUntil((route) => route.isFirst);
+              
+              // Navigate to print page with the response data
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => InvoicePrintPage(
+                    invoiceData: state.responseData['data'] ?? {},
+                  ),
+                ),
+              );
             } else if (state is CreateInvoiceFailure) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text(state.error), backgroundColor: Colors.red),
@@ -328,7 +337,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
             ),
             child: state is CreateInvoiceInProgress
                 ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                : const Text('Add Invoice', style: TextStyle(fontSize: 16)),
+                : const Text('Create & Print Invoice', style: TextStyle(fontSize: 16)),
           );
         },
       ),
