@@ -8,6 +8,9 @@ part 'cart_event.dart';
 part 'cart_state.dart';
 
 class CartBloc extends Bloc<CartEvent, CartState> {
+  // Keep track of selected products separately from search results
+  final Map<String, Map<String, dynamic>> _selectedProducts = {};
+  
   CartBloc() : super(const CartLoaded(products: [])) {
     on<SearchCartProducts>(_onSearchCartProducts);
     on<AddCartItem>(_onAddCartItem);
@@ -19,7 +22,9 @@ class CartBloc extends Bloc<CartEvent, CartState> {
     Emitter<CartState> emit,
   ) async {
     if (event.query.length < 2) {
-      emit(const CartLoaded(products: []));
+      // When search query is too short, show only selected products
+      final selectedProductsList = _selectedProducts.values.toList();
+      emit(CartLoaded(products: selectedProductsList));
       return;
     }
 
@@ -49,9 +54,28 @@ class CartBloc extends Bloc<CartEvent, CartState> {
           final productsWithQuantity = data.map((product) {
             final p = Map<String, dynamic>.from(product);
             p['price'] = p['sellingPrice'] ?? 0.0;
-            p['quantity'] = 0;
+            
+            // Check if this product is already selected and preserve its quantity
+            final productId = p['id'].toString();
+            if (_selectedProducts.containsKey(productId)) {
+              p['quantity'] = _selectedProducts[productId]!['quantity'];
+            } else {
+              p['quantity'] = 0;
+            }
+            
             return p;
           }).toList();
+          
+          // Add any selected products that are not in the current search results
+          for (final selectedProduct in _selectedProducts.values) {
+            final productId = selectedProduct['id'].toString();
+            final isInSearchResults = productsWithQuantity.any((p) => p['id'].toString() == productId);
+            
+            if (!isInSearchResults) {
+              productsWithQuantity.add(selectedProduct);
+            }
+          }
+          
           emit(CartLoaded(products: productsWithQuantity));
         } else {
           // Handle cases where "success" is false or "data" is not a list
@@ -70,12 +94,17 @@ class CartBloc extends Bloc<CartEvent, CartState> {
     final currentState = state;
     if (currentState is CartLoaded) {
       final updatedProducts = List<Map<String, dynamic>>.from(currentState.products);
-      final productIndex = updatedProducts.indexWhere((p) => p['id'] == event.productId);
+      final productIndex = updatedProducts.indexWhere((p) => p['id'].toString() == event.productId);
 
       if (productIndex != -1) {
         final product = Map<String, dynamic>.from(updatedProducts[productIndex]);
-        product['quantity'] = (product['quantity'] as int) + 1;
+        final newQuantity = (product['quantity'] as int) + 1;
+        product['quantity'] = newQuantity;
         updatedProducts[productIndex] = product;
+        
+        // Update the selected products map
+        _selectedProducts[event.productId] = product;
+        
         emit(CartLoaded(products: updatedProducts));
       }
     }
@@ -85,13 +114,23 @@ class CartBloc extends Bloc<CartEvent, CartState> {
     final currentState = state;
     if (currentState is CartLoaded) {
       final updatedProducts = List<Map<String, dynamic>>.from(currentState.products);
-      final productIndex = updatedProducts.indexWhere((p) => p['id'] == event.productId);
+      final productIndex = updatedProducts.indexWhere((p) => p['id'].toString() == event.productId);
 
       if (productIndex != -1) {
         final product = Map<String, dynamic>.from(updatedProducts[productIndex]);
         if ((product['quantity'] as int) > 0) {
-          product['quantity'] = (product['quantity'] as int) - 1;
+          final newQuantity = (product['quantity'] as int) - 1;
+          product['quantity'] = newQuantity;
           updatedProducts[productIndex] = product;
+          
+          // Update the selected products map
+          if (newQuantity > 0) {
+            _selectedProducts[event.productId] = product;
+          } else {
+            // Remove from selected products if quantity becomes 0
+            _selectedProducts.remove(event.productId);
+          }
+          
           emit(CartLoaded(products: updatedProducts));
         }
       }

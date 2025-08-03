@@ -4,6 +4,7 @@ import 'bloc/auth_bloc.dart';
 import 'bloc/create_invoice_bloc.dart';
 import 'bloc/buyers_bloc.dart';
 import 'invoice_print_page.dart'; // Added import for InvoicePrintPage
+import 'package:dropdown_search/dropdown_search.dart';
 
 class AddInvoiceScreen extends StatefulWidget {
   final List<Map<String, dynamic>> selectedProducts;
@@ -176,7 +177,7 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
     );
   }
 
-  Widget _buildCompanyInfoSection() {
+Widget _buildCompanyInfoSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -191,30 +192,45 @@ class _AddInvoiceScreenState extends State<AddInvoiceScreen> {
               return const Center(child: CircularProgressIndicator());
             }
             if (state is BuyersLoaded) {
-              if (_selectedBuyer == null && state.buyers.isNotEmpty) {
-                _selectedBuyer = state.buyers[0];
-                _tinController.text = _selectedBuyer!['tin'] ?? '';
-              }
-              return DropdownButtonFormField<Map<String, dynamic>>(
-                value: _selectedBuyer,
-                isExpanded: true,
-                items: state.buyers.map((buyer) {
-                  return DropdownMenuItem<Map<String, dynamic>>(
-                    value: buyer,
-                    child: Text(buyer['legal_name'] ?? 'Unknown Buyer', overflow: TextOverflow.ellipsis),
-                  );
-                }).toList(),
+              return DropdownSearch<Map<String, dynamic>>(
+                popupProps: PopupProps.menu(
+                  showSearchBox: true,
+                  searchFieldProps: TextFieldProps(
+                    decoration: InputDecoration(
+                      hintText: "Search for a company...",
+                      // Set the border color when the field is not focused
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.grey.shade400),
+                      ),
+                      // Set the border color when the field is focused (being typed in)
+                      focusedBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: Color(0xFF3B82F6)), // Your primary blue color
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                  menuProps: const MenuProps(
+                    backgroundColor: Colors.white,
+                  ),
+                  fit: FlexFit.loose,
+                ),
+                items: state.buyers.cast<Map<String, dynamic>>(),
+                itemAsString: (Map<String, dynamic> buyer) => buyer['legal_name'] ?? 'Unknown Buyer',
+                dropdownDecoratorProps: DropDownDecoratorProps(
+                  dropdownSearchDecoration: InputDecoration(
+                    hintText: 'Select a company',
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0), borderSide: BorderSide.none),
+                  ),
+                ),
+                selectedItem: _selectedBuyer,
                 onChanged: (newValue) {
                   setState(() {
                     _selectedBuyer = newValue;
                     _tinController.text = newValue?['tin'] ?? '';
                   });
                 },
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0), borderSide: BorderSide.none),
-                ),
               );
             }
             if (state is BuyersError) {

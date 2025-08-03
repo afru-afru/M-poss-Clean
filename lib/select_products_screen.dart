@@ -5,8 +5,16 @@ import 'add_invoice_screen.dart';
 import 'bloc/auth_bloc.dart';
 import 'bloc/cart_bloc.dart';
 
-class SelectProductsScreen extends StatelessWidget {
+class SelectProductsScreen extends StatefulWidget {
   const SelectProductsScreen({super.key});
+
+  @override
+  State<SelectProductsScreen> createState() => _SelectProductsScreenState();
+}
+
+class _SelectProductsScreenState extends State<SelectProductsScreen> {
+  // State variable to control the visibility of the header
+  bool _showTitle = true;
 
   @override
   Widget build(BuildContext context) {
@@ -48,9 +56,11 @@ class SelectProductsScreen extends StatelessWidget {
       child: Stack(
         children: [
           Column(
+            crossAxisAlignment: CrossAxisAlignment.start, // Align header to the start
             children: [
               _buildSearchBar(context),
-              _buildHeader(),
+              // Conditionally display the header based on the _showTitle state
+              if (_showTitle) _buildHeader(),
               Expanded(
                 child: isLoading
                     ? const Center(child: CircularProgressIndicator())
@@ -83,6 +93,11 @@ class SelectProductsScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       child: TextField(
         onChanged: (query) {
+          // Update the state to hide/show the title based on search input
+          setState(() {
+            _showTitle = query.isEmpty;
+          });
+
           final authState = context.read<AuthBloc>().state;
           String token = '';
           String companyId = '';
@@ -273,7 +288,7 @@ class SelectProductsScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('${totalPrice.toStringAsFixed(2)} ETB', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                Text('Number of Products : $totalProducts', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                Text('Products : $totalProducts', style: const TextStyle(color: Colors.white70, fontSize: 12)),
               ],
             ),
             const Spacer(),

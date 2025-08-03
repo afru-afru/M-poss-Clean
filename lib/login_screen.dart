@@ -124,17 +124,18 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Fixed background pattern at bottom - behind content
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Image.asset(
-              'assets/bottom-pattern.png',
-              fit: BoxFit.cover,
-              height: 150, // Reduced height to prevent overflow
+          // Fixed background pattern at bottom - only show when keyboard is not visible
+          if (MediaQuery.of(context).viewInsets.bottom == 0)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Image.asset(
+                'assets/bottom-pattern.png',
+                fit: BoxFit.cover,
+                height: 150, // Reduced height to prevent overflow
+              ),
             ),
-          ),
           // Main content on top
           SafeArea(
             child: SingleChildScrollView(

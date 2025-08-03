@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.example.my_app"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.3.13750724"
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -41,4 +41,10 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1")
+    implementation("com.google.zxing:core:3.5.2")
+    implementation("com.google.zxing:javase:3.5.2")
 }

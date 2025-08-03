@@ -5,6 +5,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'dart:convert';
 import 'bluetooth_manager.dart';
+import 'sunmi_printer_service.dart';
+import 'print_receipt.dart';
 
 class InvoicePrintPage extends StatefulWidget {
   final Map<String, dynamic> invoiceData;
@@ -17,16 +19,24 @@ class InvoicePrintPage extends StatefulWidget {
 
 class _InvoicePrintPageState extends State<InvoicePrintPage> {
   final BluetoothManager bluetoothManager = BluetoothManager();
+  final SunmiPrinterService _sunmiService = SunmiPrinterService();
   List<BluetoothInfo> _devices = [];
   BluetoothInfo? _selectedDevice;
   bool _isLoading = false;
   bool _isConnecting = false;
   bool _isPrinting = false;
+  bool _useSunmiPrinter = false;
 
   @override
   void initState() {
     super.initState();
     _checkAndRequestPermissions();
+  }
+
+  @override
+  void dispose() {
+    _sunmiService.dispose();
+    super.dispose();
   }
 
   Future<void> _checkAndRequestPermissions() async {
@@ -182,18 +192,27 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
   }
 
   Future<void> _connectToDevice() async {
-    if (_selectedDevice == null || _isConnecting) return;
+    if (_isConnecting) return;
 
     setState(() => _isConnecting = true);
 
     try {
-      await bluetoothManager.connect(_selectedDevice!);
+      bool connected = false;
+      
+      if (_useSunmiPrinter) {
+        connected = await _sunmiService.connect();
+      } else {
+        if (_selectedDevice == null) {
+          _showSnackBar('Please select a Bluetooth device first.', isError: true);
+          return;
+        }
+        connected = await bluetoothManager.connect(_selectedDevice!);
+      }
+
       if (mounted) {
         _showSnackBar(
-          bluetoothManager.isConnected
-              ? 'Connected successfully!'
-              : 'Connection failed!',
-          isError: !bluetoothManager.isConnected,
+          connected ? 'Connected successfully!' : 'Connection failed!',
+          isError: !connected,
         );
       }
     } catch (e) {
@@ -207,8 +226,10 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
     }
   }
 
-  Future<void> _printReceipt() async {
-    if (!bluetoothManager.isConnected || _isPrinting) {
+ Future<void> _printReceipt() async {
+    bool isConnected = _useSunmiPrinter ? _sunmiService.isConnected : bluetoothManager.isConnected;
+    
+    if (!isConnected || _isPrinting) {
       _showSnackBar('Please connect to a printer first.');
       return;
     }
@@ -216,180 +237,18 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
     setState(() => _isPrinting = true);
 
     try {
-      final profile = await CapabilityProfile.load();
-      final generator = Generator(PaperSize.mm58, profile);
-      List<int> bytes = [];
-
-      // Extract data from the API response structure
-      final items = widget.invoiceData['items'] as List<dynamic>? ?? [];
-      final date = widget.invoiceData['invoice_date'] != null
-          ? DateTime.parse(widget.invoiceData['invoice_date'])
-          : DateTime.now();
-      final formattedDate = DateFormat('dd/MM/yyyy').format(date);
-      final formattedTime = DateFormat('HH:mm').format(date);
-
-      // Company information
-      bytes += generator.text(
-        'TIN: ${widget.invoiceData['company_tin'] ?? 'N/A'}',
-        styles: const PosStyles(align: PosAlign.center),
-      );
-      bytes += generator.text(
-        widget.invoiceData['company_name'] ?? 'COMPANY NAME',
-        styles: const PosStyles(align: PosAlign.center, bold: true),
-      );
-      bytes += generator.text(
-        'A.A,SUBCITY KIRKOS',
-        styles: const PosStyles(align: PosAlign.center),
-      );
-      bytes += generator.text(
-        'W-09,H.NO-1146/BMS 05C',
-        styles: const PosStyles(align: PosAlign.center),
-      );
-      bytes += generator.text(
-        'DEMBEL GROUND FLOOR',
-        styles: const PosStyles(align: PosAlign.center),
-      );
-      bytes += generator.text(
-        'TEL: N/A',
-        styles: const PosStyles(align: PosAlign.center),
-      );
-      bytes += generator.hr(ch: '-');
-
-      // Invoice details
-      bytes += generator.text(
-        'FS No. ${widget.invoiceData['invoice_number'] ?? 'N/A'}',
-      );
-      bytes += generator.row([
-        PosColumn(text: formattedDate, width: 6),
-        PosColumn(
-          text: formattedTime,
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]);
-      bytes += generator.text(
-        'Buyer\'s TIN: ${widget.invoiceData['buyer_tin'] ?? 'N/A'}',
-      );
-      bytes += generator.text(
-        'Customer: ${widget.invoiceData['buyer_name'] ?? 'N/A'}',
-      );
-      bytes += generator.text(
-        'Operator: ${widget.invoiceData['company_name'] ?? 'N/A'}',
-      );
-      bytes += generator.hr(ch: '-');
-
-      // Items header
-      bytes += generator.text('Description          Qty   Price');
-      bytes += generator.hr(ch: '-');
-
-      // Items
-      for (var item in items) {
-        final String description = (item['description'] ?? 'Item').toString();
-        final String qty = (item['quantity'] ?? 1).toString();
-        final String unitPrice = (item['unit_price'] as num? ?? 0)
-            .toStringAsFixed(2);
-        final String totalAmount = (item['total_line_amount'] as num? ?? 0)
-            .toStringAsFixed(2);
-
-        bytes += generator.row([
-          PosColumn(
-            text: description.length > 18
-                ? description.substring(0, 18)
-                : description,
-            width: 6,
-            styles: const PosStyles(align: PosAlign.left),
-          ),
-          PosColumn(
-            text: '$qty x *$unitPrice',
-            width: 6,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]);
-        bytes += generator.text(
-          '*$totalAmount',
-          styles: const PosStyles(align: PosAlign.right),
-        );
+      bool result = false;
+      
+      if (_useSunmiPrinter) {
+        // Sunmi logic remains unchanged
+        result = await _sunmiService.printInvoice(widget.invoiceData);
+      } else {
+        // **** SIMPLIFIED BLUETOOTH LOGIC ****
+        // Generate the receipt bytes using the new class
+        final List<int> bytes = await ReceiptGenerator.generateBluetoothReceiptBytes(widget.invoiceData);
+        // Write bytes to the printer
+        result = await PrintBluetoothThermal.writeBytes(bytes);
       }
-
-      bytes += generator.hr(ch: '-');
-
-      // Totals
-      final num subtotal =
-          (widget.invoiceData['total_value'] as num? ?? 0) -
-          (widget.invoiceData['tax_value'] as num? ?? 0);
-      final num tax = widget.invoiceData['tax_value'] as num? ?? 0;
-
-      bytes += generator.row([
-        PosColumn(text: 'TXBL1', width: 6),
-        PosColumn(
-          text: '*${subtotal.toStringAsFixed(2)}',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]);
-      bytes += generator.row([
-        PosColumn(text: 'TAX1 15.00%', width: 6),
-        PosColumn(
-          text: '*${tax.toStringAsFixed(2)}',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]);
-      bytes += generator.hr(ch: '-');
-
-      bytes += generator.row([
-        PosColumn(
-          text: 'TOTAL',
-          width: 4,
-          styles: const PosStyles(bold: true, height: PosTextSize.size2),
-        ),
-        PosColumn(
-          text:
-              '*${(widget.invoiceData['total_value'] as num? ?? 0).toStringAsFixed(2)}',
-          width: 8,
-          styles: const PosStyles(
-            bold: true,
-            height: PosTextSize.size2,
-            align: PosAlign.right,
-          ),
-        ),
-      ]);
-
-      bytes += generator.row([
-        PosColumn(text: 'CASH', width: 6),
-        PosColumn(
-          text:
-              '*${(widget.invoiceData['total_value'] as num? ?? 0).toStringAsFixed(2)}',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]);
-      bytes += generator.hr(ch: '-');
-
-      bytes += generator.row([
-        PosColumn(text: 'ITEM #', width: 6),
-        PosColumn(
-          text: items.length.toString(),
-          width: 6,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]);
-
-      bytes += generator.feed(1);
-      bytes += generator.text(
-        'ET FGB0016901',
-        styles: const PosStyles(align: PosAlign.center),
-      );
-      bytes += generator.feed(1);
-      bytes += generator.text(
-        '--- TEST INVOICE ---',
-        styles: const PosStyles(align: PosAlign.center),
-      );
-      bytes += generator.feed(2);
-      bytes += generator.cut();
-
-      // Print
-      final result = await PrintBluetoothThermal.writeBytes(bytes);
 
       if (mounted) {
         _showSnackBar(
@@ -408,6 +267,10 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
       }
     }
   }
+
+
+
+
 
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
@@ -540,7 +403,7 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
 
   @override
   Widget build(BuildContext context) {
-    bool isConnected = bluetoothManager.isConnected;
+    bool isConnected = _useSunmiPrinter ? _sunmiService.isConnected : bluetoothManager.isConnected;
     final items = widget.invoiceData['items'] as List<dynamic>? ?? [];
     final date = widget.invoiceData['invoice_date'] != null
         ? DateTime.parse(widget.invoiceData['invoice_date'])
@@ -653,11 +516,69 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
                         ),
                         const SizedBox(width: 12),
                         const Text(
-                          'Bluetooth Printer',
+                          'Printer',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 18,
                             color: Color(0xFF1A3C8B),
+                          ),
+                        ),
+                        const Spacer(),
+                        // Printer Type Toggle
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _useSunmiPrinter = false;
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: !_useSunmiPrinter ? const Color(0xFF1A3C8B) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Text(
+                                    'Bluetooth',
+                                    style: TextStyle(
+                                      color: !_useSunmiPrinter ? Colors.white : Colors.grey.shade600,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _useSunmiPrinter = true;
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: _useSunmiPrinter ? const Color(0xFF1A3C8B) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Text(
+                                    'Sunmi',
+                                    style: TextStyle(
+                                      color: _useSunmiPrinter ? Colors.white : Colors.grey.shade600,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -669,145 +590,9 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
                               color: Color(0xFF1A3C8B),
                             ),
                           )
-                        : _devices.isEmpty
-                        ? Column(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade50,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: Colors.grey.shade200,
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.bluetooth_disabled,
-                                      size: 48,
-                                      color: Colors.grey.shade400,
-                                    ),
-                                    const SizedBox(height: 12),
-                                    const Text(
-                                      'No Bluetooth devices found',
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      'Please ensure Bluetooth is enabled and devices are paired',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: _initBluetooth,
-                                  icon: const Icon(Icons.refresh),
-                                  label: const Text(
-                                    'Request Permissions & Refresh',
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF1A3C8B),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          )
-                        : Column(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade50,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: Colors.grey.shade200,
-                                  ),
-                                ),
-                                child: DropdownButton<BluetoothInfo>(
-                                  isExpanded: true,
-                                  hint: const Text('Select printer'),
-                                  value: _selectedDevice,
-                                  underline: Container(),
-                                  items: _devices.map((device) {
-                                    return DropdownMenuItem(
-                                      value: device,
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.print, size: 20),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              device.name ?? 'Unknown Device',
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (device) {
-                                    setState(() {
-                                      _selectedDevice = device;
-                                    });
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: _selectedDevice == null
-                                      ? null
-                                      : _connectToDevice,
-                                  icon: Icon(
-                                    isConnected
-                                        ? Icons.check_circle
-                                        : Icons.bluetooth,
-                                    color: Colors.white,
-                                  ),
-                                  label: Text(
-                                    isConnected
-                                        ? 'Connected'
-                                        : 'Connect to Printer',
-                                    style: const TextStyle(color: Colors.white),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: isConnected
-                                        ? Colors.green
-                                        : const Color(0xFF1A3C8B),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                        : _useSunmiPrinter
+                        ? _buildSunmiSection()
+                        : _buildBluetoothSection(),
                   ],
                 ),
               ),
@@ -1322,6 +1107,222 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBluetoothSection() {
+    return _devices.isEmpty
+        ? Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.grey.shade200,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.bluetooth_disabled,
+                      size: 48,
+                      color: Colors.grey.shade400,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'No Bluetooth devices found',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Please ensure Bluetooth is enabled and devices are paired',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _initBluetooth,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text(
+                    'Request Permissions & Refresh',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A3C8B),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          )
+        : Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.grey.shade200,
+                  ),
+                ),
+                child: DropdownButton<BluetoothInfo>(
+                  isExpanded: true,
+                  hint: const Text('Select printer'),
+                  value: _selectedDevice,
+                  underline: Container(),
+                  items: _devices.map((device) {
+                    return DropdownMenuItem(
+                      value: device,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.print, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              device.name ?? 'Unknown Device',
+                              style: const TextStyle(
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (device) {
+                    setState(() {
+                      _selectedDevice = device;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _selectedDevice == null
+                      ? null
+                      : _connectToDevice,
+                  icon: Icon(
+                    bluetoothManager.isConnected
+                        ? Icons.check_circle
+                        : Icons.bluetooth,
+                    color: Colors.white,
+                  ),
+                  label: Text(
+                    bluetoothManager.isConnected
+                        ? 'Connected'
+                        : 'Connect to Printer',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: bluetoothManager.isConnected
+                        ? Colors.green
+                        : const Color(0xFF1A3C8B),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+  }
+
+  Widget _buildSunmiSection() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.grey.shade200,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                Icons.print,
+                size: 48,
+                color: const Color(0xFF1A3C8B),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Sunmi Printer',
+                style: TextStyle(
+                  color: Color(0xFF1A3C8B),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Connect to the built-in Sunmi printer',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _connectToDevice,
+            icon: Icon(
+              _sunmiService.isConnected
+                  ? Icons.check_circle
+                  : Icons.print,
+              color: Colors.white,
+            ),
+            label: Text(
+              _sunmiService.isConnected
+                  ? 'Connected'
+                  : 'Connect to Sunmi Printer',
+              style: const TextStyle(color: Colors.white),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _sunmiService.isConnected
+                  ? Colors.green
+                  : const Color(0xFF1A3C8B),
+              padding: const EdgeInsets.symmetric(
+                vertical: 16,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
