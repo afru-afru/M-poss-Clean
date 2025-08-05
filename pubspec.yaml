@@ -46,6 +46,7 @@ dependencies:
   flutter_launcher_icons: "^0.13.1"
   image: ^4.1.3
   dropdown_search: ^5.0.6
+  sunmi_printerx: ^1.0.0
     
   # Clean Architecture Dependencies
   dartz: ^0.10.1
@@ -120,3 +121,4 @@ flutter_launcher_icons:
   android: true                 
   ios: true                    
   image_path: "assets/invoice-04.png"
+  adaptive_icon_background: "#FFFFFF"

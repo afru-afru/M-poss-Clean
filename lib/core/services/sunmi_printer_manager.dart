@@ -14,10 +14,12 @@ class SunmiPrinterManager {
 
   bool _isConnected = false;
   bool _isInitialized = false;
+  bool _isAvailable = false;
   StreamSubscription? _eventSubscription;
 
   bool get isConnected => _isConnected;
   bool get isInitialized => _isInitialized;
+  bool get isAvailable => _isAvailable;
 
   /// Initialize the Sunmi printer
   Future<bool> initialize() async {
@@ -178,6 +180,80 @@ class SunmiPrinterManager {
     } on PlatformException catch (e) {
       print('Failed to get printer status: ${e.message}');
       return {};
+    }
+  }
+
+  /// Check if Sunmi printer is available on the device
+  Future<bool> checkAvailability() async {
+    try {
+      print('Checking Sunmi printer availability...');
+      final bool result = await _channel.invokeMethod('checkAvailability');
+      _isAvailable = result;
+      print('Sunmi printer availability check result: $result');
+      return result;
+    } on PlatformException catch (e) {
+      print('Failed to check Sunmi printer availability: ${e.message}');
+      _isAvailable = false;
+      return false;
+    }
+  }
+
+  /// Automatically connect to Sunmi printer if available
+  Future<bool> autoConnect() async {
+    try {
+      print('Starting automatic Sunmi printer connection...');
+      
+      // First check if Sunmi printer is available
+      final available = await checkAvailability();
+      if (!available) {
+        print('Sunmi printer not available on this device');
+        return false;
+      }
+
+      print('Sunmi printer is available, initializing...');
+      
+      // Initialize if not already initialized
+      if (!_isInitialized) {
+        final initialized = await initialize();
+        if (!initialized) {
+          print('Failed to initialize Sunmi printer');
+          return false;
+        }
+      }
+
+      print('Sunmi printer initialized, connecting to MAC: 74:F7:F6:BC:36:08...');
+      
+      // Connect to the specific MAC address
+      final connected = await connectToMacAddress('74:F7:F6:BC:36:08');
+      if (connected) {
+        print('Automatically connected to Sunmi printer at MAC: 74:F7:F6:BC:36:08');
+      } else {
+        print('Failed to automatically connect to Sunmi printer at MAC: 74:F7:F6:BC:36:08');
+      }
+      
+      return connected;
+    } catch (e) {
+      print('Error in autoConnect: $e');
+      return false;
+    }
+  }
+
+  /// Connect to Sunmi printer using specific MAC address
+  Future<bool> connectToMacAddress(String macAddress) async {
+    if (!_isInitialized) {
+      final initialized = await initialize();
+      if (!initialized) return false;
+    }
+    try {
+      final Map<String, dynamic> params = {
+        'macAddress': macAddress,
+      };
+      final bool result = await _channel.invokeMethod('connectToMacAddress', params);
+      _isConnected = result;
+      return result;
+    } on PlatformException catch (e) {
+      print('Failed to connect to Sunmi printer at MAC $macAddress: ${e.message}');
+      return false;
     }
   }
 

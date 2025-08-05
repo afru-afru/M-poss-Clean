@@ -47,6 +47,25 @@ class UnifiedPrinterManager {
     return _isConnected;
   }
 
+  /// Automatically detect and connect to the best available printer
+  Future<PrinterType> autoConnect() async {
+    // First try to connect to Sunmi printer if available
+    final sunmiAvailable = await _sunmiManager.checkAvailability();
+    if (sunmiAvailable) {
+      final sunmiConnected = await _sunmiManager.autoConnect();
+      if (sunmiConnected) {
+        _currentPrinterType = PrinterType.sunmi;
+        _isConnected = true;
+        return PrinterType.sunmi;
+      }
+    }
+    
+    // Fall back to Bluetooth if Sunmi is not available or connection failed
+    _currentPrinterType = PrinterType.bluetooth;
+    _isConnected = false;
+    return PrinterType.bluetooth;
+  }
+
   /// Disconnect from the current printer
   Future<bool> disconnect() async {
     switch (_currentPrinterType) {

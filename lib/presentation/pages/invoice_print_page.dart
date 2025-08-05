@@ -19,23 +19,61 @@ class InvoicePrintPage extends StatefulWidget {
 class _InvoicePrintPageState extends State<InvoicePrintPage> {
   final BluetoothManager bluetoothManager = BluetoothManager();
   final SunmiPrinterService _sunmiService = SunmiPrinterService();
-  List<BluetoothInfo> _devices = [];
-  BluetoothInfo? _selectedDevice;
-  bool _isLoading = false;
-  bool _isConnecting = false;
   bool _isPrinting = false;
-  bool _useSunmiPrinter = false;
 
   @override
   void initState() {
     super.initState();
     _checkAndRequestPermissions();
+    _autoConnectToSunmi();
   }
 
-  @override
-  void dispose() {
-    _sunmiService.dispose();
-    super.dispose();
+  Future<void> _autoConnectToSunmi() async {
+    try {
+      print('Starting automatic Sunmi printer connection...');
+      
+      // First check if Sunmi printer is available
+      final available = await _sunmiService.checkAvailability();
+      print('Sunmi printer available: $available');
+      
+      if (available) {
+        // Auto-connect to Sunmi printer
+        final connected = await _sunmiService.autoConnect();
+        print('Sunmi auto-connect result: $connected');
+        
+        if (connected && mounted) {
+          setState(() {});
+          _showSnackBar('Automatically connected to Sunmi printer! Click print to print invoice.', isError: false);
+        } else if (mounted) {
+          _showSnackBar('Sunmi printer available but connection failed. Please try manually.', isError: true);
+        }
+      } else {
+        print('Sunmi printer not available on this device');
+        if (mounted) {
+          _showSnackBar('Sunmi printer not available. Using Bluetooth instead.', isError: false);
+        }
+      }
+    } catch (e) {
+      print('Error in auto-connect to Sunmi: $e');
+      if (mounted) {
+        _showSnackBar('Error checking Sunmi printer: $e', isError: true);
+      }
+    }
+  }
+
+  // @override
+  // void dispose() {
+  //   _sunmiService.dispose();
+  //   super.dispose();
+  // }
+
+  /// Update UI when printer connection state changes
+  void _updatePrinterState() {
+    if (mounted) {
+      setState(() {
+        // Update the UI to reflect current connection state
+      });
+    }
   }
 
   Future<void> _checkAndRequestPermissions() async {
@@ -53,9 +91,6 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
       if (mounted) {
         _showInitialPermissionDialog();
       }
-    } else {
-      // Permissions are granted, initialize Bluetooth
-      _initBluetooth();
     }
   }
 
@@ -74,7 +109,6 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _initBluetooth(); // Try anyway
               },
               child: const Text('Skip'),
             ),
@@ -98,138 +132,22 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
       await Permission.bluetooth.request();
       await Permission.location.request();
       await Permission.locationWhenInUse.request();
-
-      // Initialize Bluetooth after requesting permissions
-      _initBluetooth();
     } catch (e) {
-      debugPrint('Error requesting permissions: $e');
-      _initBluetooth(); // Try anyway
+      print('Error requesting permissions: $e');
     }
   }
 
-  Future<void> _initBluetooth() async {
-    if (!mounted) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      // First check if permissions are already granted
-      final bluetoothScanStatus = await Permission.bluetoothScan.status;
-      final bluetoothConnectStatus = await Permission.bluetoothConnect.status;
-      final bluetoothStatus = await Permission.bluetooth.status;
-      final locationStatus = await Permission.location.status;
-
-      // If any permission is denied, request them
-      if (bluetoothScanStatus.isDenied ||
-          bluetoothConnectStatus.isDenied ||
-          bluetoothStatus.isDenied ||
-          locationStatus.isDenied) {
-        // Request permissions one by one
-        await Permission.bluetoothScan.request();
-        await Permission.bluetoothConnect.request();
-        await Permission.bluetooth.request();
-        await Permission.location.request();
-        await Permission.locationWhenInUse.request();
-      }
-
-      // Check final status
-      final finalBluetoothScanStatus = await Permission.bluetoothScan.status;
-      final finalBluetoothConnectStatus =
-          await Permission.bluetoothConnect.status;
-      final finalBluetoothStatus = await Permission.bluetooth.status;
-      final finalLocationStatus = await Permission.location.status;
-
-      bool allGranted =
-          finalBluetoothScanStatus.isGranted &&
-          finalBluetoothConnectStatus.isGranted &&
-          finalBluetoothStatus.isGranted &&
-          finalLocationStatus.isGranted;
-
-      if (allGranted) {
-        // Get paired devices
-        final devices = await PrintBluetoothThermal.pairedBluetooths;
-        if (mounted) {
-          setState(() {
-            _devices = devices;
-          });
-        }
-      } else {
-        if (mounted) {
-          _showSnackBar(
-            "Bluetooth permissions not granted. Please grant all permissions in settings.",
-            isError: true,
-          );
-          // Show dialog to open settings
-          _showPermissionDialog();
-        }
-      }
-    } catch (e) {
-      debugPrint("Error getting Bluetooth devices: $e");
-      if (mounted) {
-        _showSnackBar("Error getting Bluetooth devices: $e", isError: true);
-      }
-    }
-
-    // Restore previously selected device
-    if (bluetoothManager.selectedDevice != null && _devices.isNotEmpty) {
-      try {
-        final savedDeviceMac = bluetoothManager.selectedDevice!.macAdress;
-        _selectedDevice = _devices.firstWhere(
-          (d) => d.macAdress == savedDeviceMac,
-        );
-      } catch (e) {
-        // Device not found in current list
-        _selectedDevice = null;
-        bluetoothManager.selectedDevice = null;
-        bluetoothManager.isConnected = false;
-      }
-    }
-
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _connectToDevice() async {
-    if (_isConnecting) return;
-
-    setState(() => _isConnecting = true);
-
-    try {
-      bool connected = false;
-      
-      if (_useSunmiPrinter) {
-        connected = await _sunmiService.connect();
-      } else {
-        if (_selectedDevice == null) {
-          _showSnackBar('Please select a Bluetooth device first.', isError: true);
-          return;
-        }
-        connected = await bluetoothManager.connect(_selectedDevice!);
-      }
-
-      if (mounted) {
-        _showSnackBar(
-          connected ? 'Connected successfully!' : 'Connection failed!',
-          isError: !connected,
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        _showSnackBar('Connection error: $e', isError: true);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isConnecting = false);
-      }
-    }
-  }
-
- Future<void> _printReceipt() async {
-    bool isConnected = _useSunmiPrinter ? _sunmiService.isConnected : bluetoothManager.isConnected;
+  Future<void> _printReceipt() async {
+    // Check if any printer is connected
+    bool isConnected = _sunmiService.isConnected || bluetoothManager.isConnected;
     
-    if (!isConnected || _isPrinting) {
-      _showSnackBar('Please connect to a printer first.');
+    if (!isConnected) {
+      _showSnackBar('No printer connected. Please select a printer from the app bar.', isError: true);
+      return;
+    }
+
+    if (_isPrinting) {
+      _showSnackBar('Printing in progress...', isError: true);
       return;
     }
 
@@ -238,15 +156,19 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
     try {
       bool result = false;
       
-      if (_useSunmiPrinter) {
-        // Sunmi logic remains unchanged
+      // Automatically use Sunmi printer if connected, otherwise use Bluetooth
+      if (_sunmiService.isConnected) {
+        print('Printing with Sunmi printer...');
         result = await _sunmiService.printInvoice(widget.invoiceData);
-      } else {
-        // **** SIMPLIFIED BLUETOOTH LOGIC ****
+      } else if (bluetoothManager.isConnected) {
+        print('Printing with Bluetooth printer...');
         // Generate the receipt bytes using the new class
         final List<int> bytes = await ReceiptGenerator.generateBluetoothReceiptBytes(widget.invoiceData);
         // Write bytes to the printer
         result = await PrintBluetoothThermal.writeBytes(bytes);
+      } else {
+        _showSnackBar('No printer connected', isError: true);
+        return;
       }
 
       if (mounted) {
@@ -267,8 +189,105 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
     }
   }
 
+  void _showPrinterSelectionDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select Printer'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.print, color: Color(0xFF1A3C8B)),
+                title: const Text('Sunmi Printer'),
+                subtitle: Text(_sunmiService.isConnected ? 'Connected (Auto)' : 'Not Connected'),
+                trailing: _sunmiService.isConnected 
+                    ? const Icon(Icons.check_circle, color: Colors.green)
+                    : null,
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  if (!_sunmiService.isConnected) {
+                    await _sunmiService.autoConnect();
+                    setState(() {});
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.bluetooth, color: Color(0xFF1A3C8B)),
+                title: const Text('Bluetooth Printer'),
+                subtitle: Text(bluetoothManager.isConnected ? 'Connected' : 'Not Connected'),
+                trailing: bluetoothManager.isConnected 
+                    ? const Icon(Icons.check_circle, color: Colors.green)
+                    : null,
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _showBluetoothDeviceSelection();
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
+  Future<void> _showBluetoothDeviceSelection() async {
+    try {
+      // Use the correct method from print_bluetooth_thermal package
+      final devices = await PrintBluetoothThermal.pairedBluetooths;
+      if (devices.isEmpty) {
+        _showSnackBar('No Bluetooth devices found', isError: true);
+        return;
+      }
 
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Select Bluetooth Device'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 300,
+              child: ListView.builder(
+                itemCount: devices.length,
+                itemBuilder: (context, index) {
+                  final device = devices[index];
+                  return ListTile(
+                    title: Text(device.name ?? 'Unknown Device'),
+                    subtitle: Text(device.macAdress ?? 'No MAC Address'),
+                    onTap: () async {
+                      Navigator.of(context).pop();
+                      final connected = await bluetoothManager.connect(device);
+                      setState(() {});
+                      _showSnackBar(
+                        connected ? 'Connected to ${device.name}' : 'Failed to connect',
+                        isError: !connected,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+      _showSnackBar('Error getting Bluetooth devices: $e', isError: true);
+    }
+  }
 
 
   void _showSnackBar(String message, {bool isError = false}) {
@@ -305,104 +324,63 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
       return left + ' ' * rightPadding + right;
     }
 
-    receipt.writeln(
-      center('TIN: ${widget.invoiceData['company_tin'] ?? 'N/A'}'),
-    );
-    receipt.writeln(
-      center(widget.invoiceData['company_name'] ?? 'COMPANY NAME'),
-    );
+    // Company information
+    receipt.writeln(center('TIN: ${widget.invoiceData['company_tin'] ?? 'N/A'}'));
+    receipt.writeln(center(widget.invoiceData['company_name'] ?? 'COMPANY NAME'));
     receipt.writeln(center('A.A,SUBCITY KIRKOS'));
     receipt.writeln(center('W-09,H.NO-1146/BMS 05C'));
     receipt.writeln(center('DEMBEL GROUND FLOOR'));
     receipt.writeln(center('TEL: N/A'));
     receipt.writeln(dashLine);
+
+    // Invoice details
     receipt.writeln('FS No. ${widget.invoiceData['invoice_number'] ?? 'N/A'}');
-    receipt.writeln(twoColumn(formattedDate, formattedTime));
-    receipt.writeln(
-      'Buyer\'s TIN: ${widget.invoiceData['buyer_tin'] ?? 'N/A'}',
-    );
+    receipt.writeln('Buyer\'s TIN: ${widget.invoiceData['buyer_tin'] ?? 'N/A'}');
     receipt.writeln('Customer: ${widget.invoiceData['buyer_name'] ?? 'N/A'}');
     receipt.writeln('Operator: ${widget.invoiceData['company_name'] ?? 'N/A'}');
     receipt.writeln(dashLine);
-    receipt.writeln('Description          Qty   Price');
+
+    // Items header
+    receipt.writeln(twoColumn('Description', 'Price'));
     receipt.writeln(dashLine);
 
+    // Items
     for (var item in items) {
-      final String description = (item['description'] ?? 'Item').toString();
+      String description = (item['description'] ?? 'Item').toString();
+      if (description.length > 20) {
+        description = description.substring(0, 20);
+      }
       final String qty = (item['quantity'] ?? 1).toString();
-      final String unitPrice = (item['unit_price'] as num? ?? 0)
-          .toStringAsFixed(2);
-      final String totalAmount = (item['total_line_amount'] as num? ?? 0)
-          .toStringAsFixed(2);
+      final String unitPrice = (item['unit_price'] as num? ?? 0).toStringAsFixed(2);
+      final String totalAmount = '*${(item['total_line_amount'] as num? ?? 0).toStringAsFixed(2)}';
 
-      receipt.writeln(twoColumn(description, '$qty x *$unitPrice'));
-      receipt.writeln(('*$totalAmount').padLeft(32));
+      receipt.writeln(description);
+      receipt.writeln(twoColumn('  $qty x $unitPrice', totalAmount));
     }
-
     receipt.writeln(dashLine);
 
-    final double subtotal =
-        (widget.invoiceData['total_value'] ?? 0) -
-        (widget.invoiceData['tax_value'] ?? 0);
-    final double tax = widget.invoiceData['tax_value'] ?? 0;
+    // Totals
+    final num subtotal = (widget.invoiceData['total_value'] as num? ?? 0) - (widget.invoiceData['tax_value'] as num? ?? 0);
+    final num tax = widget.invoiceData['tax_value'] as num? ?? 0;
 
     receipt.writeln(twoColumn('TXBL1', '*${subtotal.toStringAsFixed(2)}'));
     receipt.writeln(twoColumn('TAX1 15.00%', '*${tax.toStringAsFixed(2)}'));
     receipt.writeln(dashLine);
-    receipt.writeln(
-      twoColumn(
-        'TOTAL',
-        '*${(widget.invoiceData['total_value'] as num? ?? 0).toStringAsFixed(2)}',
-      ),
-    );
-    receipt.writeln(
-      twoColumn(
-        'CASH',
-        '*${(widget.invoiceData['total_value'] as num? ?? 0).toStringAsFixed(2)}',
-      ),
-    );
+    receipt.writeln(twoColumn('TOTAL', '*${(widget.invoiceData['total_value'] as num? ?? 0).toStringAsFixed(2)}'));
+    receipt.writeln(twoColumn('CASH', '*${(widget.invoiceData['total_value'] as num? ?? 0).toStringAsFixed(2)}'));
     receipt.writeln(dashLine);
     receipt.writeln(twoColumn('ITEM #', items.length.toString()));
-    receipt.writeln();
-    receipt.writeln(center('ET FGB0016901'));
 
-    receipt.writeln();
+    // Final section
+    receipt.writeln(center('ET FGB0016901'));
     receipt.writeln(center('--- TEST INVOICE ---'));
 
     return receipt.toString();
   }
 
-  void _showPermissionDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Permissions Required'),
-          content: const Text(
-            'This app needs Bluetooth and Location permissions to connect to printers. '
-            'Please grant these permissions in the app settings.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                openAppSettings();
-              },
-              child: const Text('Open Settings'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    bool isConnected = _useSunmiPrinter ? _sunmiService.isConnected : bluetoothManager.isConnected;
+    bool isConnected = _sunmiService.isConnected || bluetoothManager.isConnected;
     final items = widget.invoiceData['items'] as List<dynamic>? ?? [];
     final date = widget.invoiceData['invoice_date'] != null
         ? DateTime.parse(widget.invoiceData['invoice_date'])
@@ -411,7 +389,6 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
     final formattedTime = DateFormat('HH:mm').format(date);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -421,512 +398,237 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
         ),
         title: const Text(
           'Print Invoice',
-          style: TextStyle(
-            color: Color(0xFF1A3C8B),
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
+          style: TextStyle(color: Color(0xFF1A3C8B), fontWeight: FontWeight.bold),
         ),
+        centerTitle: true,
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: isConnected ? Colors.green.shade100 : Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          // Printer selection button
+          IconButton(
+            icon: Stack(
               children: [
-                Icon(
-                  isConnected
-                      ? Icons.bluetooth_connected
-                      : Icons.bluetooth_disabled,
-                  color: isConnected ? Colors.green : Colors.grey,
-                  size: 16,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  isConnected ? 'Connected' : 'Disconnected',
-                  style: TextStyle(
-                    color: isConnected
-                        ? Colors.green.shade800
-                        : Colors.grey.shade600,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                const Icon(Icons.print, color: Color(0xFF1A3C8B)),
+                if (_sunmiService.isConnected || bluetoothManager.isConnected)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.print, color: Color(0xFF1A3C8B)),
-            onPressed: _isLoading || !isConnected ? null : _printReceipt,
+            onPressed: _showPrinterSelectionDialog,
+            tooltip: 'Select Printer',
           ),
         ],
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFF4F6F8), Color(0xFFE8F0FE)],
-          ),
-        ),
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Section
-              const SizedBox(height: 16),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Header Section
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A3C8B).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.receipt,
+                          color: Color(0xFF1A3C8B),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Invoice Details',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Color(0xFF1A3C8B),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.print, color: Color(0xFF1A3C8B)),
+                        onPressed: _isPrinting ? null : _printReceipt,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
 
-              // Bluetooth Printer Section
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1A3C8B).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.print,
-                            color: Color(0xFF1A3C8B),
+                  // Company Info
+                  _buildDetailSection('Company Information', [
+                    {
+                      'label': 'Name',
+                      'value': widget.invoiceData['company_name'] ?? 'N/A',
+                    },
+                    {
+                      'label': 'TIN',
+                      'value': widget.invoiceData['company_tin'] ?? 'N/A',
+                    },
+                  ], Icons.business),
+
+                  const SizedBox(height: 16),
+
+                  // Buyer Info
+                  _buildDetailSection('Customer Information', [
+                    {
+                      'label': 'Name',
+                      'value': widget.invoiceData['buyer_name'] ?? 'N/A',
+                    },
+                    {
+                      'label': 'TIN',
+                      'value': widget.invoiceData['buyer_tin'] ?? 'N/A',
+                    },
+                  ], Icons.person),
+                  const SizedBox(height: 16),
+                  // Connection Status Indicator
+                  if (_sunmiService.isConnected || bluetoothManager.isConnected)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: (_sunmiService.isConnected || bluetoothManager.isConnected) 
+                            ? Colors.green.withOpacity(0.1)
+                            : Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: (_sunmiService.isConnected || bluetoothManager.isConnected) 
+                              ? Colors.green.withOpacity(0.3)
+                              : Colors.orange.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            (_sunmiService.isConnected || bluetoothManager.isConnected) 
+                                ? Icons.check_circle
+                                : Icons.warning,
+                            color: (_sunmiService.isConnected || bluetoothManager.isConnected) 
+                                ? Colors.green
+                                : Colors.orange,
                             size: 20,
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Printer',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: Color(0xFF1A3C8B),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _sunmiService.isConnected 
+                                  ? 'Connected to Sunmi printer (Auto)'
+                                  : bluetoothManager.isConnected
+                                      ? 'Connected to Bluetooth printer'
+                                      : 'No printer connected',
+                              style: TextStyle(
+                                color: (_sunmiService.isConnected || bluetoothManager.isConnected) 
+                                    ? Colors.green
+                                    : Colors.orange,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Items Section
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A3C8B).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        const Spacer(),
-                        // Printer Type Toggle
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: const Icon(
+                          Icons.inventory,
+                          color: Color(0xFF1A3C8B),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Items',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Color(0xFF1A3C8B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  ...items
+                      .map(
+                        (item) => Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(20),
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade200),
                           ),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _useSunmiPrinter = false;
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: !_useSunmiPrinter ? const Color(0xFF1A3C8B) : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Text(
-                                    'Bluetooth',
-                                    style: TextStyle(
-                                      color: !_useSunmiPrinter ? Colors.white : Colors.grey.shade600,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _useSunmiPrinter = true;
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: _useSunmiPrinter ? const Color(0xFF1A3C8B) : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Text(
-                                    'Sunmi',
-                                    style: TextStyle(
-                                      color: _useSunmiPrinter ? Colors.white : Colors.grey.shade600,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _isLoading
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                              color: Color(0xFF1A3C8B),
-                            ),
-                          )
-                        : _useSunmiPrinter
-                        ? _buildSunmiSection()
-                        : _buildBluetoothSection(),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Invoice Details Section
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1A3C8B).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.business,
-                            color: Color(0xFF1A3C8B),
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Invoice Details',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: Color(0xFF1A3C8B),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Company Info
-                    _buildDetailSection('Company Information', [
-                      {
-                        'label': 'Name',
-                        'value': widget.invoiceData['company_name'] ?? 'N/A',
-                      },
-                      {
-                        'label': 'TIN',
-                        'value': widget.invoiceData['company_tin'] ?? 'N/A',
-                      },
-                    ], Icons.business),
-
-                    const SizedBox(height: 16),
-
-                    // Buyer Info
-                    _buildDetailSection('Customer Information', [
-                      {
-                        'label': 'Name',
-                        'value': widget.invoiceData['buyer_name'] ?? 'N/A',
-                      },
-                      {
-                        'label': 'TIN',
-                        'value': widget.invoiceData['buyer_tin'] ?? 'N/A',
-                      },
-                    ], Icons.person),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Items Section
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1A3C8B).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.inventory,
-                            color: Color(0xFF1A3C8B),
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Items',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: Color(0xFF1A3C8B),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    ...items
-                        .map(
-                          (item) => Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade200),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item['description'] ?? 'Item',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Qty: ${item['quantity']}',
-                                        style: const TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        '${(item['unit_price'] as num? ?? 0).toStringAsFixed(2)} ETB',
-                                        style: const TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '${(item['total_line_amount'] as num? ?? 0).toStringAsFixed(2)} ETB',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: Color(0xFF1A3C8B),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Financial Summary
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1A3C8B).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.calculate,
-                            color: Color(0xFF1A3C8B),
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Financial Summary',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: Color(0xFF1A3C8B),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSummaryRow(
-                      'Subtotal',
-                      '${((widget.invoiceData['total_value'] ?? 0) - (widget.invoiceData['tax_value'] ?? 0)).toStringAsFixed(2)} ETB',
-                    ),
-                    _buildSummaryRow(
-                      'Tax (15%)',
-                      '+ ${(widget.invoiceData['tax_value'] ?? 0).toStringAsFixed(2)} ETB',
-                    ),
-                    const Divider(height: 32),
-                    _buildSummaryRow(
-                      'Total Amount',
-                      '${(widget.invoiceData['total_value'] ?? 0).toStringAsFixed(2)} ETB',
-                      isTotal: true,
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // QR Code Section
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1A3C8B).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.qr_code,
-                            color: Color(0xFF1A3C8B),
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'QR Code',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: Color(0xFF1A3C8B),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: widget.invoiceData['qr'] != null
-                            ? Image.memory(
-                                base64Decode(widget.invoiceData['qr']),
-                                width: 200,
-                                height: 200,
-                                fit: BoxFit.contain,
-                              )
-                            : Container(
-                                width: 200,
-                                height: 200,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                              Expanded(
+                                flex: 3,
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
                                   children: [
-                                    Icon(
-                                      Icons.qr_code,
-                                      size: 48,
-                                      color: Colors.grey,
-                                    ),
-                                    SizedBox(height: 8),
                                     Text(
-                                      'QR Code not available',
-                                      style: TextStyle(
+                                      item['description'] ?? 'Item',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Qty: ${item['quantity']}',
+                                      style: const TextStyle(
                                         color: Colors.grey,
                                         fontSize: 14,
                                       ),
@@ -934,48 +636,229 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
                                   ],
                                 ),
                               ),
+                              Expanded(
+                                flex: 2,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      '${(item['unit_price'] as num? ?? 0).toStringAsFixed(2)} ETB',
+                                      style: const TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${(item['total_line_amount'] as num? ?? 0).toStringAsFixed(2)} ETB',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Color(0xFF1A3C8B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Financial Summary
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A3C8B).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.calculate,
+                          color: Color(0xFF1A3C8B),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Financial Summary',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Color(0xFF1A3C8B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSummaryRow(
+                    'Subtotal',
+                    '${((widget.invoiceData['total_value'] ?? 0) - (widget.invoiceData['tax_value'] ?? 0)).toStringAsFixed(2)} ETB',
+                  ),
+                  _buildSummaryRow(
+                    'Tax (15%)',
+                    '+ ${(widget.invoiceData['tax_value'] ?? 0).toStringAsFixed(2)} ETB',
+                  ),
+                  const Divider(height: 32),
+                  _buildSummaryRow(
+                    'Total Amount',
+                    '${(widget.invoiceData['total_value'] ?? 0).toStringAsFixed(2)} ETB',
+                    isTotal: true,
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // QR Code Section
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A3C8B).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.qr_code,
+                          color: Color(0xFF1A3C8B),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'QR Code',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Color(0xFF1A3C8B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: widget.invoiceData['qr'] != null
+                          ? Image.memory(
+                              base64Decode(widget.invoiceData['qr']),
+                              width: 200,
+                              height: 200,
+                              fit: BoxFit.contain,
+                            )
+                          : Container(
+                              width: 200,
+                              height: 200,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.qr_code,
+                                    size: 48,
+                                    color: Colors.grey,
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'QR Code not available',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Test Invoice Label
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.orange.shade700,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '--- TEST INVOICE ---',
+                      style: TextStyle(
+                        color: Colors.orange.shade700,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
                       ),
                     ),
                   ],
                 ),
               ),
+            ),
 
-              const SizedBox(height: 16),
-
-              // Test Invoice Label
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.orange.shade200),
-                ),
-                child: Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.warning_amber_rounded,
-                        color: Colors.orange.shade700,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '--- TEST INVOICE ---',
-                        style: TextStyle(
-                          color: Colors.orange.shade700,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-            ],
-          ),
+            const SizedBox(height: 20),
+          ],
         ),
       ),
     );
@@ -1106,222 +989,6 @@ class _InvoicePrintPageState extends State<InvoicePrintPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildBluetoothSection() {
-    return _devices.isEmpty
-        ? Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.grey.shade200,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.bluetooth_disabled,
-                      size: 48,
-                      color: Colors.grey.shade400,
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'No Bluetooth devices found',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Please ensure Bluetooth is enabled and devices are paired',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _initBluetooth,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text(
-                    'Request Permissions & Refresh',
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A3C8B),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          )
-        : Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.grey.shade200,
-                  ),
-                ),
-                child: DropdownButton<BluetoothInfo>(
-                  isExpanded: true,
-                  hint: const Text('Select printer'),
-                  value: _selectedDevice,
-                  underline: Container(),
-                  items: _devices.map((device) {
-                    return DropdownMenuItem(
-                      value: device,
-                      child: Row(
-                        children: [
-                          const Icon(Icons.print, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              device.name ?? 'Unknown Device',
-                              style: const TextStyle(
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (device) {
-                    setState(() {
-                      _selectedDevice = device;
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _selectedDevice == null
-                      ? null
-                      : _connectToDevice,
-                  icon: Icon(
-                    bluetoothManager.isConnected
-                        ? Icons.check_circle
-                        : Icons.bluetooth,
-                    color: Colors.white,
-                  ),
-                  label: Text(
-                    bluetoothManager.isConnected
-                        ? 'Connected'
-                        : 'Connect to Printer',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: bluetoothManager.isConnected
-                        ? Colors.green
-                        : const Color(0xFF1A3C8B),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-  }
-
-  Widget _buildSunmiSection() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.grey.shade200,
-            ),
-          ),
-          child: Column(
-            children: [
-              Icon(
-                Icons.print,
-                size: 48,
-                color: const Color(0xFF1A3C8B),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Sunmi Printer',
-                style: TextStyle(
-                  color: Color(0xFF1A3C8B),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Connect to the built-in Sunmi printer',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _connectToDevice,
-            icon: Icon(
-              _sunmiService.isConnected
-                  ? Icons.check_circle
-                  : Icons.print,
-              color: Colors.white,
-            ),
-            label: Text(
-              _sunmiService.isConnected
-                  ? 'Connected'
-                  : 'Connect to Sunmi Printer',
-              style: const TextStyle(color: Colors.white),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _sunmiService.isConnected
-                  ? Colors.green
-                  : const Color(0xFF1A3C8B),
-              padding: const EdgeInsets.symmetric(
-                vertical: 16,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

@@ -36,6 +36,11 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
   Widget build(BuildContext context) {
     const Color primaryBlue = Color(0xFF3B82F6);
     

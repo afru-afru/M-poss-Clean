@@ -19,7 +19,7 @@ class CreateInvoiceBloc extends Bloc<CreateInvoiceEvent, CreateInvoiceState> {
     emit(CreateInvoiceInProgress());
     try {
       // Define the API endpoint
-      final url = Uri.parse('http://196.190.251.122:8082/api/v2/invoice/pos');
+      final url = Uri.parse('http://196.190.251.122:8082/api/v2/invoice/draft/auto-submit');
 
       // Make the authenticated POST request
       final response = await http.post(
